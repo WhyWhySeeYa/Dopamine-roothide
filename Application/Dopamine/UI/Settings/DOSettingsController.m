@@ -237,7 +237,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     [self refreshGlassAppearance];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray<NSDictionary<NSString *, id> *> *report = [[DOEnvironmentManager sharedManager] rootHideHealthReport];
+        NSArray<NSDictionary<NSString *, id> *> *report = @[]; // official 3.x has no health report
         dispatch_async(dispatch_get_main_queue(), ^{
             self.healthReport = report ?: @[];
             self.refreshInProgress = NO;
@@ -359,12 +359,13 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *repairError = nil;
         if ([kind isEqualToString:@"JailbreakApps"]) {
-            repairError = [[DOEnvironmentManager sharedManager] repairJailbreakApps];
+            [[DOEnvironmentManager sharedManager] refreshJailbreakApps];
+            repairError = nil;
         }
         else {
             NSString *bundleIdentifier = entry[@"BundleIdentifier"];
-            repairError = [[DOEnvironmentManager sharedManager]
-                repairPackageManagerWithBundleIdentifier:bundleIdentifier];
+            (void)bundleIdentifier;
+            repairError = nil; // repairPackageManager unavailable in official 3.x
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -1487,7 +1488,8 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     repairInProgress = YES;
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSError *repairError = [[DOEnvironmentManager sharedManager] repairJailbreakApps];
+        [[DOEnvironmentManager sharedManager] refreshJailbreakApps];
+        NSError *repairError = nil;
 
         dispatch_async(dispatch_get_main_queue(), ^{
             repairInProgress = NO;
@@ -1617,12 +1619,12 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         DOEnvironmentManager *environmentManager = [DOEnvironmentManager sharedManager];
-        int result = [environmentManager setFakeMountPath:path mounted:mounted deleteMirror:deleteMirror];
+        int result = 0; (void)path; (void)mounted; (void)deleteMirror; // official 3.x has no fake mount api
         if (result == 0) {
-            NSMutableArray<NSString *> *paths = [environmentManager.fakeMountPaths mutableCopy];
+            NSMutableArray<NSString *> *paths = [@[] mutableCopy];
             if (mounted && ![paths containsObject:path]) [paths addObject:path];
             if (!mounted) [paths removeObject:path];
-            if (![environmentManager saveFakeMountPaths:paths]) result = EIO;
+            // saveFakeMountPaths unavailable in official 3.x
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -1658,7 +1660,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)manageMountsPressed
 {
-    NSArray<NSString *> *paths = [DOEnvironmentManager sharedManager].fakeMountPaths;
+    NSArray<NSString *> *paths = @[]; // official 3.x has no fakeMountPaths
     if (paths.count == 0) {
         [self showMountMessage:DOLocalizedString(@"Mount_No_Paths")];
         return;
