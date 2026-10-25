@@ -142,3 +142,9 @@
 "Mount_Unmount_Delete_Copy" = "卸载并删除副本";
 "Mount_Unmount_Keep_Copy" = "卸载并保留副本";
 "Mount_View_In_Filza" = "Filza 查看";
+
+/* --- 3.x missing keys (translated) --- */
+"Custom_Boot_Logo" = "自定义启动图标";
+"Section_Boot_Logo" = "启动图标";
+"Select_Image" = "选择图片";
+"Settings_Allow_Old_arm64e_ABI_Libraries" = "允许旧版 arm64e 库";
