@@ -995,13 +995,6 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
             [jetsamSpecifier setProperty:@"jetsamOptionTitles" forKey:@"titlesDataSource"];
             [specifiers addObject:jetsamSpecifier];
 
-            PSSpecifier *supporterLicenseSpecifier = [PSSpecifier preferenceSpecifierNamed:@"" target:self set:defSetter get:defGetter detail:nil cell:PSStaticTextCell edit:nil];
-            [supporterLicenseSpecifier setProperty:@"Supporter License" forKey:@"title"];
-            [supporterLicenseSpecifier setProperty:[DOButtonCell class] forKey:@"cellClass"];
-            [supporterLicenseSpecifier setProperty:buttonHeight forKey:@"height"];
-            [supporterLicenseSpecifier setProperty:@"checkmark.seal" forKey:@"image"];
-            [supporterLicenseSpecifier setProperty:@"supporterLicensePressed" forKey:@"action"];
-            [specifiers addObject:supporterLicenseSpecifier];
             
             if (!envManager.isJailbroken && !envManager.isInstalledThroughTrollStore) {
                 PSSpecifier *removeJailbreakSwitchSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Button_Remove_Jailbreak") target:self set:@selector(setRemoveJailbreakEnabled:specifier:) get:defGetter detail:nil cell:PSSwitchCell edit:nil];

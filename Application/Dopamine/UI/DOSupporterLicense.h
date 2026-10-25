@@ -180,7 +180,7 @@ static inline NSDictionary<NSString *, id> *DORHSupporterCurrentLicenseInfo(void
 
 static inline BOOL DORHSupporterIsVerified(void)
 {
-    return DORHSupporterCurrentLicenseInfo() != nil;
+    return YES; // patched: no license required
 }
 
 static inline NSString *DORHSupporterCurrentID(void)
