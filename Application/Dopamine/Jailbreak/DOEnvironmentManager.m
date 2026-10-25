@@ -925,6 +925,76 @@ extern char **environ;
 }
 
 
+// --- ported from RC7 helpers ---
+
+static NSString *DOCanonicalApplicationPath(NSString *path)
+{
+    if (!path.length) return nil;
+    return [[path stringByResolvingSymlinksInPath] stringByStandardizingPath];
+}
+
+static NSString *DORegisteredApplicationPath(NSString *bundleIdentifier)
+{
+    if (!bundleIdentifier.length) return nil;
+
+    LSApplicationProxy *appProxy = [LSApplicationProxy applicationProxyForIdentifier:bundleIdentifier];
+    if (!appProxy.installed || !appProxy.bundleURL.path.length) return nil;
+    return DOCanonicalApplicationPath(appProxy.bundleURL.path);
+}
+
+typedef NS_ENUM(NSUInteger, DOJailbreakAppRegistrationState) {
+    DOJailbreakAppRegistrationStateMissing,
+    DOJailbreakAppRegistrationStateMatches,
+    DOJailbreakAppRegistrationStateStale,
+    DOJailbreakAppRegistrationStateConflict,
+};
+
+static DOJailbreakAppRegistrationState DOJailbreakAppRegistrationStateForPath(NSString *bundleIdentifier, NSString *expectedPath, NSString **registeredPathOut)
+{
+    NSString *registeredPath = DORegisteredApplicationPath(bundleIdentifier);
+    if (registeredPathOut) *registeredPathOut = registeredPath;
+
+    if (!registeredPath) return DOJailbreakAppRegistrationStateMissing;
+    if ([registeredPath isEqualToString:DOCanonicalApplicationPath(expectedPath)]) return DOJailbreakAppRegistrationStateMatches;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:registeredPath]) return DOJailbreakAppRegistrationStateStale;
+    return DOJailbreakAppRegistrationStateConflict;
+}
+
+static NSError *DOJailbreakAppRegistrationConflictError(NSString *bundleIdentifier, NSString *expectedPath, NSString *registeredPath)
+{
+    return [NSError errorWithDomain:@"DOJailbreakAppRepairErrorDomain"
+                               code:EEXIST
+                           userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Refusing to replace an existing app registration for %@. Expected %@, but LaunchServices is registered to %@.", bundleIdentifier, expectedPath, registeredPath]}];
+}
+
+static NSError *DOJailbreakAppUserConflictError(NSString *bundleIdentifier, NSString *expectedPath, NSString *userAppPath)
+{
+    return [NSError errorWithDomain:@"DOJailbreakAppRepairErrorDomain"
+                               code:EEXIST
+                           userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Refusing to repair %@ at %@ because a user application with the same bundle identifier exists at %@.", bundleIdentifier, expectedPath, userAppPath]}];
+}
+
+static NSString *DOUserApplicationPathForBundleIdentifier(NSString *bundleIdentifier)
+{
+    if (!bundleIdentifier.length) return nil;
+
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSString *userAppsPath = @"/var/containers/Bundle/Application";
+    for (NSString *appUUID in [fileManager contentsOfDirectoryAtPath:userAppsPath error:nil]) {
+        NSString *UUIDPath = [userAppsPath stringByAppendingPathComponent:appUUID];
+        for (NSString *appCandidate in [fileManager contentsOfDirectoryAtPath:UUIDPath error:nil]) {
+            if (![appCandidate.pathExtension.lowercaseString isEqualToString:@"app"]) continue;
+            NSString *userAppPath = [UUIDPath stringByAppendingPathComponent:appCandidate];
+            NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[userAppPath stringByAppendingPathComponent:@"Info.plist"]];
+            if ([infoDictionary[@"CFBundleIdentifier"] isEqualToString:bundleIdentifier]) {
+                return DOCanonicalApplicationPath(userAppPath);
+            }
+        }
+    }
+    return nil;
+}
+
+
 // --- ported from RC7 ---
 static NSDictionary<NSString *, id> *DOJailbreakAppHealthEntry(NSString *displayName,
                                                                   NSString *bundleIdentifier,
