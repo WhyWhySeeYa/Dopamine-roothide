@@ -663,12 +663,6 @@ NSString *const bootstrapErrorDomain = @"BootstrapErrorDomain";
     return [NSError errorWithDomain:bootstrapErrorDomain code:BootstrapErrorCodeFailedFinalising userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Unknown package manager: %@", packageManagerKey ?: @"(null)"]}];
 }
 
-- (NSError *)installPackageManagers
-{
-    for (NSDictionary *packageManagerDict in [[DOUIManager sharedInstance] enabledPackageManagers]) {
-        NSError *error = [self installPackageDictionary:packageManagerDict];
-        if (error) return error;
-
 @end
 
 
