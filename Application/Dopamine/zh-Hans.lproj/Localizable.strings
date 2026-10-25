@@ -124,3 +124,21 @@
 "Status_Title_Select_Package_Managers" = "请选择包管理器";
 "Select_Package_Managers_Install_Message" = "如果你不确定选择哪一个比较好，请选择 Sileo";
 "Continue" = "继续";
+
+/* --- ported from RC7 (missing keys) --- */
+"Alert_Reboot_Device_Body" = "设备将重新启动，越狱会暂时失效，需再次执行越狱才能恢复。是否继续？";
+"Button_Mount" = "挂载";
+"Button_OK" = "确定";
+"Enable dyld patch" = "启用 dyld 补丁";
+"Menu_Reboot_Device_Title" = "重启设备";
+"Mount_Add_Title" = "新增挂载";
+"Mount_Manage_Title" = "管理挂载";
+"Mount_No_Paths" = "当前没有已配置的挂载路径。";
+"Mount_Operation_Failed" = "挂载操作失败，错误码：%d。";
+"Mount_Operation_Succeeded" = "挂载操作已成功完成。";
+"Mount_Path_Invalid" = "路径必须是已存在的目录，且不能是文件系统根目录。";
+"Mount_Path_Prompt" = "输入要镜像到越狱环境中的目录绝对路径。";
+"Mount_Title" = "挂载";
+"Mount_Unmount_Delete_Copy" = "卸载并删除副本";
+"Mount_Unmount_Keep_Copy" = "卸载并保留副本";
+"Mount_View_In_Filza" = "Filza 查看";

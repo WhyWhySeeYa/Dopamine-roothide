@@ -10,6 +10,17 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NS_ENUM(NSUInteger, DOPackageManagerHealthState) {
+    DOPackageManagerHealthStateNotSelected,
+    DOPackageManagerHealthStateHealthy,
+    DOPackageManagerHealthStateAppMissing,
+    DOPackageManagerHealthStateBundleInvalid,
+    DOPackageManagerHealthStateRegistrationMissing,
+    DOPackageManagerHealthStateRegistrationStale,
+    DOPackageManagerHealthStateRegistrationConflict,
+    DOPackageManagerHealthStateInspectionFailed,
+};
+
 @interface DOEnvironmentManager : NSObject
 {
     DOBootstrapper *_bootstrapper;
@@ -81,6 +92,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSError *)deleteBootstrap;
 - (NSError *)reinstallPackageManagers;
 - (NSError *)updateBootLogo;
+
+// --- ported from RC7 ---
+@property (nonatomic, readonly) NSData *bootManifestHash;
+- (NSError * _Nullable)repairJailbreakApps;
+- (NSArray<NSDictionary<NSString *, id> *> *)jailbreakAppHealthReport;
+- (NSArray<NSDictionary<NSString *, id> *> *)packageManagerHealthReport;
+- (NSArray<NSDictionary<NSString *, id> *> *)rootHideHealthReport;
+- (NSError * _Nullable)repairPackageManagers;
+- (NSError * _Nullable)repairPackageManagerWithBundleIdentifier:(NSString *)bundleIdentifier;
+- (NSArray<NSString *> *)fakeMountPaths;
+- (BOOL)saveFakeMountPaths:(NSArray<NSString *> *)paths;
+- (int)setFakeMountPath:(NSString *)path mounted:(BOOL)mounted deleteMirror:(BOOL)deleteMirror;
+- (void)restoreFakeMounts;
 @end
 
 NS_ASSUME_NONNULL_END

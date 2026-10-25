@@ -122,18 +122,16 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
         [self.refreshButton.heightAnchor constraintEqualToConstant:44.0],
     ]];
 
-    if (DORHSupporterIsVerified()) {
-        DOCustomLiquidGlassView *glass = [[DOCustomLiquidGlassView alloc] initWithCornerRadius:18.0 baseTintAlpha:0.038];
-        glass.userInteractionEnabled = NO;
-        glass.materialScale = 0.88;
-        glass.preferredCornerRadius = 18.0;
-        glass.layer.cornerRadius = 18.0;
-        glass.layer.maskedCorners =
-            kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner |
-            kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-        self.sectionGlassView = glass;
-        [tableView insertSubview:glass atIndex:0];
-    }
+    DOCustomLiquidGlassView *glass = [[DOCustomLiquidGlassView alloc] initWithCornerRadius:18.0 baseTintAlpha:0.038];
+    glass.userInteractionEnabled = NO;
+    glass.materialScale = 0.88;
+    glass.preferredCornerRadius = 18.0;
+    glass.layer.cornerRadius = 18.0;
+    glass.layer.maskedCorners =
+        kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner |
+        kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+    self.sectionGlassView = glass;
+    [tableView insertSubview:glass atIndex:0];
 
     UIScreenEdgePanGestureRecognizer *edgeGesture =
         [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self action:@selector(edgeBackGesture:)];
@@ -197,11 +195,6 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)refreshGlassAppearance
 {
-    if (!DORHSupporterIsVerified()) {
-        self.sectionGlassView.hidden = YES;
-        return;
-    }
-
     self.backButton.tintColor = [self healthForegroundWithAlpha:0.96];
     self.refreshButton.tintColor = [self healthForegroundWithAlpha:0.96];
 
@@ -237,7 +230,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     [self refreshGlassAppearance];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray<NSDictionary<NSString *, id> *> *report = @[]; // official 3.x has no health report
+        NSArray<NSDictionary<NSString *, id> *> *report = [[DOEnvironmentManager sharedManager] rootHideHealthReport];
         dispatch_async(dispatch_get_main_queue(), ^{
             self.healthReport = report ?: @[];
             self.refreshInProgress = NO;
@@ -359,13 +352,12 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *repairError = nil;
         if ([kind isEqualToString:@"JailbreakApps"]) {
-            [[DOEnvironmentManager sharedManager] refreshJailbreakApps];
-            repairError = nil;
+            repairError = [[DOEnvironmentManager sharedManager] repairJailbreakApps];
         }
         else {
             NSString *bundleIdentifier = entry[@"BundleIdentifier"];
-            (void)bundleIdentifier;
-            repairError = nil; // repairPackageManager unavailable in official 3.x
+            repairError = [[DOEnvironmentManager sharedManager]
+                repairPackageManagerWithBundleIdentifier:bundleIdentifier];
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -464,9 +456,6 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)customGlassCleanupTableHairlines
 {
-    if (!DORHSupporterIsVerified())
-        return;
-
     UITableView *tableView = [self valueForKey:@"table"];
     if (!tableView)
         return;
@@ -517,9 +506,6 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)customGlassStyleVisibleCell:(UITableViewCell *)cell atIndexPath:(NSIndexPath *)indexPath
 {
-    if (!DORHSupporterIsVerified())
-        return;
-
     if (!cell)
         return;
 
@@ -562,9 +548,6 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)customGlassRefreshSectionBackdrops
 {
-    if (!DORHSupporterIsVerified())
-        return;
-
     UITableView *tableView = [self valueForKey:@"table"];
     if (!tableView)
         return;
@@ -638,9 +621,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)customGlassRefreshPageAppearance
 {
-    if (!DORHSupporterIsVerified())
-        return;
-
+    [self customGlassInstallBackNavigation];
     [self customGlassApplyPageAppearance];
 
     UITableView *tableView = [self valueForKey:@"table"];
@@ -649,6 +630,8 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     [self customGlassRefreshSectionBackdrops];
 
     UIView *backButton = [self.view viewWithTag:0xC653];
+    if (backButton)
+        [self.view bringSubviewToFront:backButton];
     if ([backButton isKindOfClass:[UIButton class]]) {
         ((UIButton *)backButton).tintColor = [self customGlassForegroundWithAlpha:0.96];
     }
@@ -717,9 +700,6 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)customGlassInstallPageAppearance
 {
-    if (!DORHSupporterIsVerified())
-        return;
-
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = UIColor.clearColor;
@@ -1488,8 +1468,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     repairInProgress = YES;
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        [[DOEnvironmentManager sharedManager] refreshJailbreakApps];
-        NSError *repairError = nil;
+        NSError *repairError = [[DOEnvironmentManager sharedManager] repairJailbreakApps];
 
         dispatch_async(dispatch_get_main_queue(), ^{
             repairInProgress = NO;
@@ -1619,12 +1598,12 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         DOEnvironmentManager *environmentManager = [DOEnvironmentManager sharedManager];
-        int result = 0; (void)path; (void)mounted; (void)deleteMirror; // official 3.x has no fake mount api
+        int result = [environmentManager setFakeMountPath:path mounted:mounted deleteMirror:deleteMirror];
         if (result == 0) {
-            NSMutableArray<NSString *> *paths = [@[] mutableCopy];
+            NSMutableArray<NSString *> *paths = [environmentManager.fakeMountPaths mutableCopy];
             if (mounted && ![paths containsObject:path]) [paths addObject:path];
             if (!mounted) [paths removeObject:path];
-            // saveFakeMountPaths unavailable in official 3.x
+            if (![environmentManager saveFakeMountPaths:paths]) result = EIO;
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -1660,7 +1639,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)manageMountsPressed
 {
-    NSArray<NSString *> *paths = @[]; // official 3.x has no fakeMountPaths
+    NSArray<NSString *> *paths = [DOEnvironmentManager sharedManager].fakeMountPaths;
     if (paths.count == 0) {
         [self showMountMessage:DOLocalizedString(@"Mount_No_Paths")];
         return;

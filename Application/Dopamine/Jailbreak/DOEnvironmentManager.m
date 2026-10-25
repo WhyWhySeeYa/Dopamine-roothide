@@ -924,4 +924,902 @@ extern char **environ;
     }
 }
 
+
+// --- ported from RC7 ---
+static NSDictionary<NSString *, id> *DOJailbreakAppHealthEntry(NSString *displayName,
+                                                                  NSString *bundleIdentifier,
+                                                                  NSString *applicationPath,
+                                                                  NSString *stateName,
+                                                                  BOOL healthy,
+                                                                  BOOL repairable,
+                                                                  NSString *detail)
+{
+    NSMutableDictionary<NSString *, id> *entry = [@{
+        @"DisplayName" : displayName ?: bundleIdentifier ?: @"Jailbreak App",
+        @"BundleIdentifier" : bundleIdentifier ?: @"",
+        @"StateName" : stateName ?: @"Unknown",
+        @"Healthy" : @(healthy),
+        @"Repairable" : @(repairable),
+    } mutableCopy];
+    if (applicationPath.length) entry[@"ApplicationPath"] = DOCanonicalApplicationPath(applicationPath);
+    if (detail.length) entry[@"Detail"] = detail;
+    return entry.copy;
+}
+
+- (NSArray<NSDictionary<NSString *, id> *> *)jailbreakAppHealthReport
+{
+    __block NSMutableArray<NSDictionary<NSString *, id> *> *healthReport = [NSMutableArray array];
+
+    [self runUnsandboxed:^{
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        NSString *applicationsPath = JBROOT_PATH(@"/Applications");
+        NSError *directoryError = nil;
+        NSArray<NSString *> *applicationNames = [fileManager contentsOfDirectoryAtPath:applicationsPath error:&directoryError];
+        if (!applicationNames) {
+            [healthReport addObject:DOJailbreakAppHealthEntry(@"Jailbreak Apps", nil, applicationsPath,
+                                                              @"Inspection Failed", NO, NO,
+                                                              directoryError.localizedDescription ?: @"Unable to enumerate jailbreak applications.")];
+            return;
+        }
+
+        NSMutableArray<NSDictionary<NSString *, NSString *> *> *applications = [NSMutableArray array];
+        NSMutableDictionary<NSString *, NSNumber *> *identifierCounts = [NSMutableDictionary dictionary];
+        for (NSString *applicationName in applicationNames) {
+            if (![applicationName.pathExtension.lowercaseString isEqualToString:@"app"]) continue;
+
+            NSString *applicationPath = [applicationsPath stringByAppendingPathComponent:applicationName];
+            NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[applicationPath stringByAppendingPathComponent:@"Info.plist"]];
+            NSString *bundleIdentifier = infoDictionary[@"CFBundleIdentifier"];
+            NSString *displayName = infoDictionary[@"CFBundleDisplayName"] ?: infoDictionary[@"CFBundleName"] ?: applicationName.stringByDeletingPathExtension;
+            [applications addObject:@{
+                @"DisplayName" : displayName ?: @"Jailbreak App",
+                @"BundleIdentifier" : bundleIdentifier ?: @"",
+                @"ApplicationPath" : applicationPath,
+            }];
+            if (bundleIdentifier.length) {
+                identifierCounts[bundleIdentifier] = @([identifierCounts[bundleIdentifier] unsignedIntegerValue] + 1);
+            }
+        }
+
+        // Mirror repairJailbreakApps' physical duplicate-app protection, but build
+        // the lookup once because this detector may inspect several jailbreak apps.
+        NSMutableDictionary<NSString *, NSString *> *userApplicationPathsByIdentifier = [NSMutableDictionary dictionary];
+        NSSet<NSString *> *jailbreakIdentifiers = [NSSet setWithArray:identifierCounts.allKeys];
+        NSString *userAppsPath = @"/var/containers/Bundle/Application";
+        for (NSString *appUUID in [fileManager contentsOfDirectoryAtPath:userAppsPath error:nil]) {
+            NSString *UUIDPath = [userAppsPath stringByAppendingPathComponent:appUUID];
+            for (NSString *appCandidate in [fileManager contentsOfDirectoryAtPath:UUIDPath error:nil]) {
+                if (![appCandidate.pathExtension.lowercaseString isEqualToString:@"app"]) continue;
+                NSString *userAppPath = [UUIDPath stringByAppendingPathComponent:appCandidate];
+                NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[userAppPath stringByAppendingPathComponent:@"Info.plist"]];
+                NSString *bundleIdentifier = infoDictionary[@"CFBundleIdentifier"];
+                if (bundleIdentifier.length && [jailbreakIdentifiers containsObject:bundleIdentifier] && !userApplicationPathsByIdentifier[bundleIdentifier]) {
+                    userApplicationPathsByIdentifier[bundleIdentifier] = DOCanonicalApplicationPath(userAppPath);
+                }
+            }
+        }
+
+        for (NSDictionary<NSString *, NSString *> *application in applications) {
+            NSString *displayName = application[@"DisplayName"];
+            NSString *bundleIdentifier = application[@"BundleIdentifier"];
+            NSString *applicationPath = application[@"ApplicationPath"];
+
+            if (!bundleIdentifier.length) {
+                [healthReport addObject:DOJailbreakAppHealthEntry(displayName, nil, applicationPath,
+                                                                  @"Bundle Invalid", NO, NO,
+                                                                  @"The application is missing CFBundleIdentifier.")];
+                continue;
+            }
+            if ([identifierCounts[bundleIdentifier] unsignedIntegerValue] > 1) {
+                [healthReport addObject:DOJailbreakAppHealthEntry(displayName, bundleIdentifier, applicationPath,
+                                                                  @"Bundle Invalid", NO, NO,
+                                                                  [NSString stringWithFormat:@"Multiple jailbreak applications use the bundle identifier %@.", bundleIdentifier])];
+                continue;
+            }
+
+            NSString *userAppPath = userApplicationPathsByIdentifier[bundleIdentifier];
+            if (userAppPath.length) {
+                [healthReport addObject:DOJailbreakAppHealthEntry(displayName, bundleIdentifier, applicationPath,
+                                                                  @"Registration Conflict", NO, NO,
+                                                                  [NSString stringWithFormat:@"A user application with the same bundle identifier exists at %@.", userAppPath])];
+                continue;
+            }
+
+            NSString *registeredPath = nil;
+            DOJailbreakAppRegistrationState registrationState = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+            switch (registrationState) {
+                case DOJailbreakAppRegistrationStateMatches:
+                    [healthReport addObject:DOJailbreakAppHealthEntry(displayName, bundleIdentifier, applicationPath,
+                                                                      @"Healthy", YES, NO, nil)];
+                    break;
+                case DOJailbreakAppRegistrationStateMissing:
+                    [healthReport addObject:DOJailbreakAppHealthEntry(displayName, bundleIdentifier, applicationPath,
+                                                                      @"Registration Missing", NO, YES, nil)];
+                    break;
+                case DOJailbreakAppRegistrationStateStale:
+                    [healthReport addObject:DOJailbreakAppHealthEntry(displayName, bundleIdentifier, applicationPath,
+                                                                      @"Registration Stale", NO, YES,
+                                                                      registeredPath.length ? [NSString stringWithFormat:@"LaunchServices still references %@.", registeredPath] : nil)];
+                    break;
+                case DOJailbreakAppRegistrationStateConflict:
+                    [healthReport addObject:DOJailbreakAppHealthEntry(displayName, bundleIdentifier, applicationPath,
+                                                                      @"Registration Conflict", NO, NO,
+                                                                      registeredPath.length ? [NSString stringWithFormat:@"LaunchServices is registered to the live path %@.", registeredPath] : nil)];
+                    break;
+            }
+        }
+    }];
+
+    return healthReport.copy;
+}
+
+- (NSError *)repairJailbreakApps
+{
+    __block NSError *repairError = nil;
+    __block BOOL repairAttempted = NO;
+
+    [self runAsRoot:^{
+        repairAttempted = YES;
+        [self runUnsandboxed:^{
+            const char *uicachePath = JBROOT_PATH("/usr/bin/uicache");
+            if (access(uicachePath, X_OK) != 0) {
+                int errorCode = errno ? errno : ENOENT;
+                repairError = [NSError errorWithDomain:NSPOSIXErrorDomain code:errorCode userInfo:nil];
+                return;
+            }
+
+            NSString *applicationsPath = JBROOT_PATH(@"/Applications");
+            NSError *directoryError = nil;
+            NSArray<NSString *> *applicationNames = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:applicationsPath error:&directoryError];
+            if (!applicationNames) {
+                repairError = directoryError ?: [NSError errorWithDomain:NSPOSIXErrorDomain code:EIO userInfo:nil];
+                return;
+            }
+
+            // Build and validate the complete jailbreak-app set before changing LaunchServices.
+            NSMutableDictionary<NSString *, NSString *> *applicationsByIdentifier = [NSMutableDictionary dictionary];
+            for (NSString *applicationName in applicationNames) {
+                if (![applicationName.pathExtension.lowercaseString isEqualToString:@"app"]) continue;
+
+                NSString *applicationPath = [applicationsPath stringByAppendingPathComponent:applicationName];
+                NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[applicationPath stringByAppendingPathComponent:@"Info.plist"]];
+                NSString *bundleIdentifier = infoDictionary[@"CFBundleIdentifier"];
+                if (!bundleIdentifier.length) {
+                    repairError = [NSError errorWithDomain:@"DOJailbreakAppRepairErrorDomain"
+                                                       code:EINVAL
+                                                   userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Jailbreak app is missing CFBundleIdentifier: %@", applicationPath]}];
+                    return;
+                }
+
+                if (applicationsByIdentifier[bundleIdentifier]) {
+                    repairError = [NSError errorWithDomain:@"DOJailbreakAppRepairErrorDomain"
+                                                       code:EEXIST
+                                                   userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Duplicate jailbreak app bundle identifier: %@", bundleIdentifier]}];
+                    return;
+                }
+                applicationsByIdentifier[bundleIdentifier] = applicationPath;
+            }
+
+            // Mirror DOJailbreaker's physical duplicate-app protection. LaunchServices can
+            // itself be stale, so checking only LSApplicationProxy is not sufficient here.
+            NSString *userAppsPath = @"/var/containers/Bundle/Application";
+            for (NSString *appUUID in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:userAppsPath error:nil]) {
+                NSString *UUIDPath = [userAppsPath stringByAppendingPathComponent:appUUID];
+                for (NSString *appCandidate in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:UUIDPath error:nil]) {
+                    if (![appCandidate.pathExtension.lowercaseString isEqualToString:@"app"]) continue;
+
+                    NSString *userAppPath = [UUIDPath stringByAppendingPathComponent:appCandidate];
+                    NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[userAppPath stringByAppendingPathComponent:@"Info.plist"]];
+                    NSString *bundleIdentifier = infoDictionary[@"CFBundleIdentifier"];
+                    if (!bundleIdentifier.length) continue;
+                    NSString *jailbreakAppPath = applicationsByIdentifier[bundleIdentifier];
+                    if (jailbreakAppPath) {
+                        repairError = DOJailbreakAppUserConflictError(bundleIdentifier, jailbreakAppPath, userAppPath);
+                        return;
+                    }
+                }
+            }
+
+            // Preflight every registration before mutating any of them. A mismatched path
+            // that still exists is a real conflict; a missing old path is a repairable stale
+            // registration (for example after a jbroot rerandomization).
+            for (NSString *bundleIdentifier in applicationsByIdentifier) {
+                NSString *applicationPath = applicationsByIdentifier[bundleIdentifier];
+                NSString *registeredPath = nil;
+                DOJailbreakAppRegistrationState state = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                if (state == DOJailbreakAppRegistrationStateConflict) {
+                    repairError = DOJailbreakAppRegistrationConflictError(bundleIdentifier, DOCanonicalApplicationPath(applicationPath), registeredPath);
+                    return;
+                }
+            }
+
+            BOOL needsFullRefresh = NO;
+            for (NSString *bundleIdentifier in applicationsByIdentifier) {
+                NSString *applicationPath = applicationsByIdentifier[bundleIdentifier];
+                NSString *registeredPath = nil;
+                DOJailbreakAppRegistrationState state = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                if (state == DOJailbreakAppRegistrationStateMatches) continue;
+                if (state == DOJailbreakAppRegistrationStateConflict) {
+                    repairError = DOJailbreakAppRegistrationConflictError(bundleIdentifier, DOCanonicalApplicationPath(applicationPath), registeredPath);
+                    return;
+                }
+
+                // Missing and stale registrations are both safe to repair in place. uicache
+                // registration replaces the stale LS record without touching a live app path.
+                exec_cmd(uicachePath, "-p", applicationPath.fileSystemRepresentation, NULL);
+
+                state = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                if (state == DOJailbreakAppRegistrationStateConflict) {
+                    repairError = DOJailbreakAppRegistrationConflictError(bundleIdentifier, DOCanonicalApplicationPath(applicationPath), registeredPath);
+                    return;
+                }
+                if (state != DOJailbreakAppRegistrationStateMatches) {
+                    needsFullRefresh = YES;
+                }
+            }
+
+            if (needsFullRefresh) {
+                // Re-check before the broad fallback so a registration that appeared
+                // concurrently is never overwritten by a full refresh.
+                needsFullRefresh = NO;
+                for (NSString *bundleIdentifier in applicationsByIdentifier) {
+                    NSString *applicationPath = applicationsByIdentifier[bundleIdentifier];
+                    NSString *registeredPath = nil;
+                    DOJailbreakAppRegistrationState state = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                    if (state == DOJailbreakAppRegistrationStateMatches) continue;
+                    if (state == DOJailbreakAppRegistrationStateConflict) {
+                        repairError = DOJailbreakAppRegistrationConflictError(bundleIdentifier, DOCanonicalApplicationPath(applicationPath), registeredPath);
+                        return;
+                    }
+                    needsFullRefresh = YES;
+                }
+            }
+
+            if (needsFullRefresh) {
+                int result = exec_cmd(uicachePath, "-a", NULL);
+                if (result != 0) {
+                    repairError = [NSError errorWithDomain:@"DOJailbreakAppRepairErrorDomain"
+                                                       code:result
+                                                   userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Failed to refresh jailbreak app registrations (uicache exit %d).", result]}];
+                    return;
+                }
+            }
+
+            NSMutableArray<NSString *> *remainingIssues = [NSMutableArray array];
+            for (NSString *bundleIdentifier in applicationsByIdentifier) {
+                NSString *applicationPath = applicationsByIdentifier[bundleIdentifier];
+                NSString *registeredPath = nil;
+                DOJailbreakAppRegistrationState state = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                if (state == DOJailbreakAppRegistrationStateConflict) {
+                    repairError = DOJailbreakAppRegistrationConflictError(bundleIdentifier, DOCanonicalApplicationPath(applicationPath), registeredPath);
+                    return;
+                }
+                if (state != DOJailbreakAppRegistrationStateMatches) {
+                    [remainingIssues addObject:bundleIdentifier];
+                }
+            }
+
+            if (remainingIssues.count) {
+                repairError = [NSError errorWithDomain:@"DOJailbreakAppRepairErrorDomain"
+                                                   code:EIO
+                                               userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Jailbreak app registration is still inconsistent for: %@", [remainingIssues componentsJoinedByString:@", "]]}];
+            }
+        }];
+    }];
+
+    if (!repairAttempted && !repairError) {
+        repairError = [NSError errorWithDomain:NSPOSIXErrorDomain
+                                           code:EPERM
+                                       userInfo:@{NSLocalizedDescriptionKey : @"Failed to enter the root context required to repair jailbreak app registrations."}];
+    }
+
+    return repairError;
+}
+
+static NSString *DOPackageManagerHealthStateName(DOPackageManagerHealthState state)
+{
+    switch (state) {
+        case DOPackageManagerHealthStateNotSelected: return @"Not Selected";
+        case DOPackageManagerHealthStateHealthy: return @"Healthy";
+        case DOPackageManagerHealthStateAppMissing: return @"App Missing";
+        case DOPackageManagerHealthStateBundleInvalid: return @"Bundle Invalid";
+        case DOPackageManagerHealthStateRegistrationMissing: return @"Registration Missing";
+        case DOPackageManagerHealthStateRegistrationStale: return @"Registration Stale";
+        case DOPackageManagerHealthStateRegistrationConflict: return @"Registration Conflict";
+        case DOPackageManagerHealthStateInspectionFailed: return @"Inspection Failed";
+    }
+    return @"Unknown";
+}
+
+- (NSArray<NSDictionary<NSString *, id> *> *)packageManagerHealthReport
+{
+    NSArray<NSDictionary *> *packageManagers = [[DOUIManager sharedInstance] availablePackageManagers];
+    NSSet<NSString *> *enabledPackageManagerKeys = [NSSet setWithArray:[[DOUIManager sharedInstance] enabledPackageManagerKeys]];
+    __block NSMutableArray<NSDictionary<NSString *, id> *> *healthReport = [NSMutableArray arrayWithCapacity:packageManagers.count];
+
+    [self runUnsandboxed:^{
+        NSString *applicationsPath = JBROOT_PATH(@"/Applications");
+        NSError *directoryError = nil;
+        NSArray<NSString *> *applicationNames = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:applicationsPath error:&directoryError];
+
+        NSMutableDictionary<NSString *, NSString *> *applicationPathsByIdentifier = [NSMutableDictionary dictionary];
+        NSMutableSet<NSString *> *duplicateIdentifiers = [NSMutableSet set];
+        for (NSString *applicationName in applicationNames ?: @[]) {
+            if (![applicationName.pathExtension.lowercaseString isEqualToString:@"app"]) continue;
+
+            NSString *applicationPath = [applicationsPath stringByAppendingPathComponent:applicationName];
+            NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[applicationPath stringByAppendingPathComponent:@"Info.plist"]];
+            NSString *bundleIdentifier = infoDictionary[@"CFBundleIdentifier"];
+            if (!bundleIdentifier.length) continue;
+
+            if (applicationPathsByIdentifier[bundleIdentifier]) {
+                [duplicateIdentifiers addObject:bundleIdentifier];
+            }
+            else {
+                applicationPathsByIdentifier[bundleIdentifier] = applicationPath;
+            }
+        }
+
+        for (NSDictionary *packageManager in packageManagers) {
+            NSString *displayName = packageManager[@"Display Name"];
+            NSString *bundleIdentifier = packageManager[@"Key"];
+            BOOL selected = bundleIdentifier.length && [enabledPackageManagerKeys containsObject:bundleIdentifier];
+            DOPackageManagerHealthState state = DOPackageManagerHealthStateNotSelected;
+            NSString *applicationPath = nil;
+            NSString *registeredPath = nil;
+            NSString *detail = nil;
+            NSString *knownApplicationPath = bundleIdentifier.length ? applicationPathsByIdentifier[bundleIdentifier] : nil;
+            NSString *namedApplicationPath = displayName.length ? [applicationsPath stringByAppendingPathComponent:[displayName stringByAppendingPathExtension:@"app"]] : nil;
+            BOOL namedApplicationExists = namedApplicationPath.length && [[NSFileManager defaultManager] fileExistsAtPath:namedApplicationPath];
+            BOOL packageManagerAppPresent = knownApplicationPath.length ||
+                                            namedApplicationExists ||
+                                            (bundleIdentifier.length && [duplicateIdentifiers containsObject:bundleIdentifier]);
+
+            // Selection is a user preference, not a health gate. An unselected and
+            // genuinely absent package manager remains Not Selected; any installed
+            // package manager is inspected fully.
+            if (selected || !applicationNames || packageManagerAppPresent) {
+                NSString *userAppPath = DOUserApplicationPathForBundleIdentifier(bundleIdentifier);
+                if (userAppPath) {
+                    state = DOPackageManagerHealthStateRegistrationConflict;
+                    detail = [NSString stringWithFormat:@"A user application with the same bundle identifier exists at %@.", userAppPath];
+                }
+                else if (!applicationNames) {
+                    state = DOPackageManagerHealthStateInspectionFailed;
+                    detail = directoryError.localizedDescription ?: @"Unable to enumerate jailbreak applications.";
+                }
+                else if ([duplicateIdentifiers containsObject:bundleIdentifier]) {
+                    state = DOPackageManagerHealthStateBundleInvalid;
+                    applicationPath = applicationPathsByIdentifier[bundleIdentifier];
+                    detail = [NSString stringWithFormat:@"Multiple jailbreak applications use the bundle identifier %@.", bundleIdentifier];
+                }
+                else {
+                    applicationPath = knownApplicationPath;
+                    if (!applicationPath) {
+                        registeredPath = DORegisteredApplicationPath(bundleIdentifier);
+
+                        // When the current jbroot app is missing, a live registration at some
+                        // other path is a conflict and must be surfaced before any reinstall.
+                        // A missing registered path is only stale metadata and is repairable.
+                        BOOL registeredPathExists = registeredPath.length && [[NSFileManager defaultManager] fileExistsAtPath:registeredPath];
+                        NSString *canonicalNamedPath = DOCanonicalApplicationPath(namedApplicationPath);
+                        BOOL registeredToNamedPath = registeredPathExists && canonicalNamedPath.length && [registeredPath isEqualToString:canonicalNamedPath];
+                        if (registeredPathExists && !registeredToNamedPath) {
+                            state = DOPackageManagerHealthStateRegistrationConflict;
+                            detail = [NSString stringWithFormat:@"LaunchServices is registered to a live application at %@ while the current %@ application is missing.", registeredPath, displayName ?: bundleIdentifier];
+                        }
+                        else if (namedApplicationExists) {
+                            applicationPath = namedApplicationPath;
+                            state = DOPackageManagerHealthStateBundleInvalid;
+                            detail = [NSString stringWithFormat:@"%@ exists but its bundle identifier does not match %@.", namedApplicationPath.lastPathComponent, bundleIdentifier];
+                        }
+                        else {
+                            state = DOPackageManagerHealthStateAppMissing;
+                            if (registeredPath.length) {
+                                detail = [NSString stringWithFormat:@"The application is missing and LaunchServices still references the stale path %@.", registeredPath];
+                            }
+                        }
+                    }
+                    else {
+                        DOJailbreakAppRegistrationState registrationState = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                        switch (registrationState) {
+                            case DOJailbreakAppRegistrationStateMatches:
+                                state = DOPackageManagerHealthStateHealthy;
+                                break;
+                            case DOJailbreakAppRegistrationStateMissing:
+                                state = DOPackageManagerHealthStateRegistrationMissing;
+                                break;
+                            case DOJailbreakAppRegistrationStateStale:
+                                state = DOPackageManagerHealthStateRegistrationStale;
+                                break;
+                            case DOJailbreakAppRegistrationStateConflict:
+                                state = DOPackageManagerHealthStateRegistrationConflict;
+                                break;
+                        }
+                    }
+                }
+            }
+
+            NSMutableDictionary<NSString *, id> *entry = [@{
+                @"DisplayName" : displayName ?: bundleIdentifier ?: @"Package Manager",
+                @"BundleIdentifier" : bundleIdentifier ?: @"",
+                @"Selected" : @(selected),
+                @"State" : @(state),
+                @"StateName" : DOPackageManagerHealthStateName(state),
+            } mutableCopy];
+            if (applicationPath.length) entry[@"ApplicationPath"] = DOCanonicalApplicationPath(applicationPath);
+            if (registeredPath.length) entry[@"RegisteredPath"] = registeredPath;
+            if (detail.length) entry[@"Detail"] = detail;
+            [healthReport addObject:entry];
+        }
+    }];
+
+    return healthReport.copy;
+}
+
+static BOOL DOPackageManagerBundleInvalidIsReinstallable(NSString *displayName, NSString *bundleIdentifier);
+
+static NSDictionary<NSString *, id> *DORootHideHealthEntry(NSString *kind,
+                                                              NSString *displayName,
+                                                              NSString *stateName,
+                                                              BOOL healthy,
+                                                              BOOL repairable,
+                                                              NSString *detail)
+{
+    NSMutableDictionary<NSString *, id> *entry = [@{
+        @"Kind" : kind ?: @"Unknown",
+        @"DisplayName" : displayName ?: @"RootHide Health",
+        @"StateName" : stateName ?: @"Unknown",
+        @"Healthy" : @(healthy),
+        @"Repairable" : @(repairable),
+    } mutableCopy];
+    if (detail.length) entry[@"Detail"] = detail;
+    return entry.copy;
+}
+
+- (NSArray<NSDictionary<NSString *, id> *> *)rootHideHealthReport
+{
+    NSMutableArray<NSDictionary<NSString *, id> *> *healthReport = [NSMutableArray array];
+    BOOL bootstrapped = self.isBootstrapped;
+
+    if (!bootstrapped) {
+        [healthReport addObject:DORootHideHealthEntry(@"Bootstrap", @"Bootstrap", @"Not Bootstrapped", NO, NO,
+                                                      @"No active RootHide jailbreak root is available.")];
+        [healthReport addObject:DORootHideHealthEntry(@"JailbreakApps", @"Jailbreak Apps", @"Unavailable", NO, NO,
+                                                      @"Jailbreak app health requires an installed bootstrap.")];
+        for (NSDictionary *packageManager in [[DOUIManager sharedInstance] availablePackageManagers]) {
+            NSString *displayName = packageManager[@"Display Name"] ?: packageManager[@"Key"] ?: @"Package Manager";
+            [healthReport addObject:DORootHideHealthEntry(@"PackageManager", displayName, @"Unavailable", NO, NO,
+                                                          @"Package manager health requires an installed bootstrap.")];
+        }
+        [healthReport addObject:DORootHideHealthEntry(@"Injection", @"Injection", @"Unavailable", NO, NO,
+                                                      @"Injection health requires an installed bootstrap.")];
+        return healthReport.copy;
+    }
+
+    __block NSMutableArray<NSString *> *missingBootstrapComponents = [NSMutableArray array];
+    __block NSMutableArray<NSString *> *missingInjectionComponents = [NSMutableArray array];
+    [self runUnsandboxed:^{
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        BOOL isDirectory = NO;
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/") isDirectory:&isDirectory] || !isDirectory)
+            [missingBootstrapComponents addObject:@"jailbreak root"];
+        isDirectory = NO;
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/basebin") isDirectory:&isDirectory] || !isDirectory)
+            [missingBootstrapComponents addObject:@"basebin"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/.installed_dopamine")])
+            [missingBootstrapComponents addObject:@"install marker"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/basebin/.version")])
+            [missingBootstrapComponents addObject:@"basebin version"];
+        if (access(JBROOT_PATH("/basebin/jbctl"), X_OK) != 0)
+            [missingBootstrapComponents addObject:@"jbctl"];
+        if (access(JBROOT_PATH("/usr/bin/uicache"), X_OK) != 0)
+            [missingBootstrapComponents addObject:@"uicache"];
+        if (access(JBROOT_PATH("/usr/bin/dpkg"), X_OK) != 0)
+            [missingBootstrapComponents addObject:@"dpkg"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/var/lib/dpkg/status")])
+            [missingBootstrapComponents addObject:@"dpkg status"];
+
+        NSString *basebinPath = JBROOT_PATH(@"/basebin");
+        BOOL systemhookPresent = [fileManager fileExistsAtPath:[basebinPath stringByAppendingPathComponent:@"systemhook.dylib"]];
+        if (!systemhookPresent) {
+            NSString *systemhookTemplate = @"systemhook-0000000000000000.dylib";
+            NSCharacterSet *nonHexCharacters = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdefABCDEF"] invertedSet];
+            for (NSString *entryName in [fileManager contentsOfDirectoryAtPath:basebinPath error:nil]) {
+                if (entryName.length != systemhookTemplate.length ||
+                    ![entryName hasPrefix:@"systemhook-"] ||
+                    ![entryName hasSuffix:@".dylib"]) continue;
+
+                NSString *brandString = [entryName substringWithRange:NSMakeRange(@"systemhook-".length, 16)];
+                if ([brandString rangeOfCharacterFromSet:nonHexCharacters].location != NSNotFound) continue;
+
+                BOOL isDirectory = NO;
+                NSString *candidatePath = [basebinPath stringByAppendingPathComponent:entryName];
+                if ([fileManager fileExistsAtPath:candidatePath isDirectory:&isDirectory] && !isDirectory) {
+                    systemhookPresent = YES;
+                    break;
+                }
+            }
+        }
+        if (!systemhookPresent)
+            [missingInjectionComponents addObject:@"systemhook.dylib"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/basebin/roothidehooks.dylib")])
+            [missingInjectionComponents addObject:@"roothidehooks.dylib"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/basebin/launchdhook.dylib")])
+            [missingInjectionComponents addObject:@"launchdhook.dylib"];
+        if (access(JBROOT_PATH("/basebin/opainject"), X_OK) != 0)
+            [missingInjectionComponents addObject:@"opainject"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/basebin/libjailbreak.dylib")])
+            [missingInjectionComponents addObject:@"basebin libjailbreak.dylib"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/usr/lib/libjailbreak.dylib")])
+            [missingInjectionComponents addObject:@"libjailbreak.dylib link"];
+        if (![fileManager fileExistsAtPath:JBROOT_PATH(@"/basebin/.fakelib/dyld")])
+            [missingInjectionComponents addObject:@"patched dyld link"];
+    }];
+
+    BOOL bootstrapHealthy = missingBootstrapComponents.count == 0;
+    [healthReport addObject:DORootHideHealthEntry(@"Bootstrap", @"Bootstrap",
+                                                  bootstrapHealthy ? @"Healthy" : @"Needs Attention",
+                                                  bootstrapHealthy, NO,
+                                                  bootstrapHealthy ? nil : [NSString stringWithFormat:@"Missing: %@.", [missingBootstrapComponents componentsJoinedByString:@", "]])];
+
+    NSArray<NSDictionary<NSString *, id> *> *jailbreakApps = [self jailbreakAppHealthReport];
+    NSMutableArray<NSString *> *jailbreakAppIssues = [NSMutableArray array];
+    BOOL jailbreakAppsRepairable = YES;
+    NSString *singleJailbreakAppState = nil;
+    for (NSDictionary<NSString *, id> *entry in jailbreakApps) {
+        if ([entry[@"Healthy"] boolValue]) continue;
+        NSString *displayName = entry[@"DisplayName"] ?: entry[@"BundleIdentifier"] ?: @"Jailbreak App";
+        NSString *stateName = entry[@"StateName"] ?: @"Unknown";
+        if (!singleJailbreakAppState) singleJailbreakAppState = stateName;
+        [jailbreakAppIssues addObject:[NSString stringWithFormat:@"%@: %@", displayName, stateName]];
+        if (![entry[@"Repairable"] boolValue]) jailbreakAppsRepairable = NO;
+    }
+    BOOL jailbreakAppsHealthy = jailbreakAppIssues.count == 0;
+    NSString *jailbreakAppsState = jailbreakAppsHealthy ? @"Healthy" : (jailbreakAppIssues.count == 1 ? singleJailbreakAppState : @"Needs Attention");
+    [healthReport addObject:DORootHideHealthEntry(@"JailbreakApps", @"Jailbreak Apps", jailbreakAppsState,
+                                                  jailbreakAppsHealthy,
+                                                  !jailbreakAppsHealthy && jailbreakAppsRepairable,
+                                                  jailbreakAppsHealthy ? nil : [jailbreakAppIssues componentsJoinedByString:@"\n"])];
+
+    for (NSDictionary<NSString *, id> *packageManagerEntry in [self packageManagerHealthReport]) {
+        NSMutableDictionary<NSString *, id> *entry = [packageManagerEntry mutableCopy];
+        DOPackageManagerHealthState state = [entry[@"State"] unsignedIntegerValue];
+        BOOL selected = [entry[@"Selected"] boolValue];
+        BOOL healthy = state == DOPackageManagerHealthStateHealthy || state == DOPackageManagerHealthStateNotSelected;
+        BOOL repairable = NO;
+        if (state == DOPackageManagerHealthStateRegistrationMissing ||
+            state == DOPackageManagerHealthStateRegistrationStale) {
+            repairable = [entry[@"ApplicationPath"] length] > 0;
+        }
+        else if (state == DOPackageManagerHealthStateAppMissing) {
+            // Never install a package manager the user did not select.
+            repairable = selected;
+        }
+        else if (state == DOPackageManagerHealthStateBundleInvalid) {
+            NSString *displayName = entry[@"DisplayName"];
+            NSString *bundleIdentifier = entry[@"BundleIdentifier"];
+            __block BOOL reinstallable = NO;
+            [self runUnsandboxed:^{
+                reinstallable = DOPackageManagerBundleInvalidIsReinstallable(displayName, bundleIdentifier);
+            }];
+            repairable = selected && reinstallable;
+        }
+        entry[@"Kind"] = @"PackageManager";
+        entry[@"Healthy"] = @(healthy);
+        entry[@"Repairable"] = @(repairable);
+        [healthReport addObject:entry.copy];
+    }
+
+    BOOL injectionHealthy = missingInjectionComponents.count == 0;
+    [healthReport addObject:DORootHideHealthEntry(@"Injection", @"Injection",
+                                                  injectionHealthy ? @"Healthy" : @"Component Missing",
+                                                  injectionHealthy, NO,
+                                                  injectionHealthy ? nil : [NSString stringWithFormat:@"Missing: %@.", [missingInjectionComponents componentsJoinedByString:@", "]])];
+
+    return healthReport.copy;
+}
+
+static NSError *DOPackageManagerRepairError(NSInteger code, NSString *description)
+{
+    return [NSError errorWithDomain:@"DOPackageManagerRepairErrorDomain"
+                               code:code
+                           userInfo:@{NSLocalizedDescriptionKey : description ?: @"Package manager repair failed."}];
+}
+
+static BOOL DOPackageManagerBundleInvalidIsReinstallable(NSString *displayName, NSString *bundleIdentifier)
+{
+    if (!displayName.length || !bundleIdentifier.length) return NO;
+
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSString *applicationsPath = JBROOT_PATH(@"/Applications");
+    NSUInteger matchingIdentifierCount = 0;
+    for (NSString *applicationName in [fileManager contentsOfDirectoryAtPath:applicationsPath error:nil]) {
+        if (![applicationName.pathExtension.lowercaseString isEqualToString:@"app"]) continue;
+        NSString *applicationPath = [applicationsPath stringByAppendingPathComponent:applicationName];
+        NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[applicationPath stringByAppendingPathComponent:@"Info.plist"]];
+        if ([infoDictionary[@"CFBundleIdentifier"] isEqualToString:bundleIdentifier]) {
+            matchingIdentifierCount++;
+            if (matchingIdentifierCount > 1) return NO;
+        }
+    }
+    if (matchingIdentifierCount != 0) return NO;
+
+    NSString *namedApplicationPath = [applicationsPath stringByAppendingPathComponent:[displayName stringByAppendingPathExtension:@"app"]];
+    if (![fileManager fileExistsAtPath:namedApplicationPath]) return NO;
+    NSDictionary *infoDictionary = [NSDictionary dictionaryWithContentsOfFile:[namedApplicationPath stringByAppendingPathComponent:@"Info.plist"]];
+    return ![infoDictionary[@"CFBundleIdentifier"] isEqualToString:bundleIdentifier];
+}
+
+- (NSError *)repairPackageManagersMatchingBundleIdentifier:(NSString * _Nullable)targetBundleIdentifier
+                                               selectedOnly:(BOOL)selectedOnly
+{
+    NSArray<NSDictionary<NSString *, id> *> *initialReport = [self packageManagerHealthReport];
+    NSArray<NSDictionary *> *availablePackageManagers = [[DOUIManager sharedInstance] availablePackageManagers];
+    NSMutableDictionary<NSString *, NSDictionary *> *packageManagersByIdentifier = [NSMutableDictionary dictionary];
+    for (NSDictionary *packageManager in availablePackageManagers) {
+        NSString *bundleIdentifier = packageManager[@"Key"];
+        if (bundleIdentifier.length) packageManagersByIdentifier[bundleIdentifier] = packageManager;
+    }
+
+    if (targetBundleIdentifier.length && !packageManagersByIdentifier[targetBundleIdentifier]) {
+        return DOPackageManagerRepairError(ENOENT, [NSString stringWithFormat:@"Unknown package manager %@.", targetBundleIdentifier]);
+    }
+
+    NSMutableArray<NSString *> *packageManagersToInstall = [NSMutableArray array];
+    BOOL needsUICache = NO;
+    for (NSDictionary<NSString *, id> *entry in initialReport) {
+        NSString *bundleIdentifier = entry[@"BundleIdentifier"];
+        if (targetBundleIdentifier.length && ![bundleIdentifier isEqualToString:targetBundleIdentifier]) continue;
+        if (selectedOnly && ![entry[@"Selected"] boolValue]) continue;
+
+        NSString *displayName = entry[@"DisplayName"] ?: bundleIdentifier ?: @"Package Manager";
+        DOPackageManagerHealthState state = [entry[@"State"] unsignedIntegerValue];
+        if (state == DOPackageManagerHealthStateHealthy) continue;
+        if (state == DOPackageManagerHealthStateNotSelected) {
+            if (targetBundleIdentifier.length) {
+                return DOPackageManagerRepairError(EPERM, [NSString stringWithFormat:@"%@ is not selected and is not installed; refusing to install it automatically.", displayName]);
+            }
+            continue;
+        }
+
+        NSDictionary *packageManager = packageManagersByIdentifier[bundleIdentifier];
+        if (!packageManager) {
+            return DOPackageManagerRepairError(ENOENT, [NSString stringWithFormat:@"Missing package manager configuration for %@.", displayName]);
+        }
+        if (state == DOPackageManagerHealthStateRegistrationConflict) {
+            return DOPackageManagerRepairError(EEXIST, entry[@"Detail"] ?: [NSString stringWithFormat:@"Refusing to repair conflicting registration for %@.", displayName]);
+        }
+        if (state == DOPackageManagerHealthStateInspectionFailed) {
+            return DOPackageManagerRepairError(EIO, entry[@"Detail"] ?: [NSString stringWithFormat:@"Unable to inspect %@ safely.", displayName]);
+        }
+        if (state == DOPackageManagerHealthStateBundleInvalid) {
+            __block BOOL reinstallable = NO;
+            [self runUnsandboxed:^{
+                reinstallable = DOPackageManagerBundleInvalidIsReinstallable(displayName, bundleIdentifier);
+            }];
+            if (!reinstallable) {
+                return DOPackageManagerRepairError(EEXIST, entry[@"Detail"] ?: [NSString stringWithFormat:@"%@ has an ambiguous jailbreak application layout that cannot be repaired safely.", displayName]);
+            }
+        }
+
+        if ((state == DOPackageManagerHealthStateAppMissing ||
+             state == DOPackageManagerHealthStateBundleInvalid) &&
+            ![entry[@"Selected"] boolValue]) {
+            return DOPackageManagerRepairError(EPERM, [NSString stringWithFormat:@"%@ is not selected; refusing to reinstall it automatically.", displayName]);
+        }
+
+        if (state == DOPackageManagerHealthStateAppMissing || state == DOPackageManagerHealthStateBundleInvalid) {
+            NSString *packageName = packageManager[@"Package"];
+            if (!packageName.length) {
+                return DOPackageManagerRepairError(EINVAL, [NSString stringWithFormat:@"Missing bundled package configuration for %@.", displayName]);
+            }
+            NSString *packagePath = [[NSBundle mainBundle].bundlePath stringByAppendingPathComponent:packageName];
+            if (![[NSFileManager defaultManager] fileExistsAtPath:packagePath]) {
+                return DOPackageManagerRepairError(ENOENT, [NSString stringWithFormat:@"Bundled package for %@ is missing: %@", displayName, packageName]);
+            }
+            [packageManagersToInstall addObject:bundleIdentifier];
+        }
+        needsUICache = YES;
+    }
+
+    if (needsUICache) {
+        __block BOOL uicacheAvailable = NO;
+        __block int uicacheErrorCode = ENOENT;
+        [self runUnsandboxed:^{
+            if (access(JBROOT_PATH("/usr/bin/uicache"), X_OK) == 0) {
+                uicacheAvailable = YES;
+            }
+            else if (errno) {
+                uicacheErrorCode = errno;
+            }
+        }];
+        if (!uicacheAvailable) {
+            return [NSError errorWithDomain:NSPOSIXErrorDomain code:uicacheErrorCode userInfo:nil];
+        }
+    }
+
+    if (packageManagersToInstall.count) {
+        __block NSError *installError = nil;
+        __block BOOL rootAttempted = NO;
+        [self runAsRoot:^{
+            rootAttempted = YES;
+            [self runUnsandboxed:^{
+                for (NSString *bundleIdentifier in packageManagersToInstall) {
+                    NSString *userAppPath = DOUserApplicationPathForBundleIdentifier(bundleIdentifier);
+                    if (userAppPath) {
+                        installError = DOPackageManagerRepairError(EEXIST, [NSString stringWithFormat:@"Refusing to install %@ because a user application with the same bundle identifier exists at %@.", bundleIdentifier, userAppPath]);
+                        return;
+                    }
+                    installError = [self->_bootstrapper installPackageManagerWithKey:bundleIdentifier];
+                    if (installError) return;
+                }
+            }];
+        }];
+        if (!rootAttempted && !installError) {
+            installError = [NSError errorWithDomain:NSPOSIXErrorDomain code:EPERM userInfo:@{NSLocalizedDescriptionKey : @"Failed to enter the root context required to repair package managers."}];
+        }
+        if (installError) return installError;
+    }
+
+    NSArray<NSDictionary<NSString *, id> *> *postInstallReport = [self packageManagerHealthReport];
+    NSMutableArray<NSDictionary<NSString *, id> *> *registrationsToRepair = [NSMutableArray array];
+    for (NSDictionary<NSString *, id> *entry in postInstallReport) {
+        NSString *bundleIdentifier = entry[@"BundleIdentifier"];
+        if (targetBundleIdentifier.length && ![bundleIdentifier isEqualToString:targetBundleIdentifier]) continue;
+        if (selectedOnly && ![entry[@"Selected"] boolValue]) continue;
+
+        DOPackageManagerHealthState state = [entry[@"State"] unsignedIntegerValue];
+        if (state == DOPackageManagerHealthStateHealthy || state == DOPackageManagerHealthStateNotSelected) continue;
+        if (state == DOPackageManagerHealthStateRegistrationMissing || state == DOPackageManagerHealthStateRegistrationStale) {
+            [registrationsToRepair addObject:entry];
+            continue;
+        }
+
+        NSString *displayName = entry[@"DisplayName"] ?: entry[@"BundleIdentifier"] ?: @"Package Manager";
+        NSString *detail = entry[@"Detail"] ?: entry[@"StateName"] ?: @"Unknown state";
+        return DOPackageManagerRepairError(state == DOPackageManagerHealthStateRegistrationConflict ? EEXIST : EIO, [NSString stringWithFormat:@"%@ is not safely repairable after reinstall: %@", displayName, detail]);
+    }
+
+    if (registrationsToRepair.count) {
+        __block NSError *registrationError = nil;
+        __block BOOL rootAttempted = NO;
+        [self runAsRoot:^{
+            rootAttempted = YES;
+            [self runUnsandboxed:^{
+                const char *uicachePath = JBROOT_PATH("/usr/bin/uicache");
+                for (NSDictionary<NSString *, id> *entry in registrationsToRepair) {
+                    NSString *bundleIdentifier = entry[@"BundleIdentifier"];
+                    NSString *displayName = entry[@"DisplayName"] ?: bundleIdentifier ?: @"Package Manager";
+                    NSString *applicationPath = entry[@"ApplicationPath"];
+                    if (!applicationPath.length) {
+                        registrationError = DOPackageManagerRepairError(EIO, [NSString stringWithFormat:@"Cannot determine the application path for %@.", displayName]);
+                        return;
+                    }
+
+                    NSString *userAppPath = DOUserApplicationPathForBundleIdentifier(bundleIdentifier);
+                    if (userAppPath) {
+                        registrationError = DOPackageManagerRepairError(EEXIST, [NSString stringWithFormat:@"Refusing to register %@ because a user application with the same bundle identifier exists at %@.", displayName, userAppPath]);
+                        return;
+                    }
+
+                    NSString *registeredPath = nil;
+                    DOJailbreakAppRegistrationState registrationState = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                    if (registrationState == DOJailbreakAppRegistrationStateMatches) continue;
+                    if (registrationState == DOJailbreakAppRegistrationStateConflict) {
+                        registrationError = DOJailbreakAppRegistrationConflictError(bundleIdentifier, DOCanonicalApplicationPath(applicationPath), registeredPath);
+                        return;
+                    }
+
+                    int result = exec_cmd(uicachePath, "-p", applicationPath.fileSystemRepresentation, NULL);
+                    registrationState = DOJailbreakAppRegistrationStateForPath(bundleIdentifier, applicationPath, &registeredPath);
+                    if (registrationState == DOJailbreakAppRegistrationStateConflict) {
+                        registrationError = DOJailbreakAppRegistrationConflictError(bundleIdentifier, DOCanonicalApplicationPath(applicationPath), registeredPath);
+                        return;
+                    }
+                    if (registrationState != DOJailbreakAppRegistrationStateMatches) {
+                        registrationError = DOPackageManagerRepairError(result != 0 ? result : EIO, [NSString stringWithFormat:@"Failed to register %@ after repair (uicache exit %d).", displayName, result]);
+                        return;
+                    }
+                }
+            }];
+        }];
+        if (!rootAttempted && !registrationError) {
+            registrationError = [NSError errorWithDomain:NSPOSIXErrorDomain code:EPERM userInfo:@{NSLocalizedDescriptionKey : @"Failed to enter the root context required to repair package manager registrations."}];
+        }
+        if (registrationError) return registrationError;
+    }
+
+    BOOL targetVerified = !targetBundleIdentifier.length;
+    for (NSDictionary<NSString *, id> *entry in [self packageManagerHealthReport]) {
+        NSString *bundleIdentifier = entry[@"BundleIdentifier"];
+        if (targetBundleIdentifier.length && ![bundleIdentifier isEqualToString:targetBundleIdentifier]) continue;
+        if (targetBundleIdentifier.length) targetVerified = YES;
+        if (selectedOnly && ![entry[@"Selected"] boolValue]) continue;
+        if ([entry[@"State"] unsignedIntegerValue] != DOPackageManagerHealthStateHealthy) {
+            NSString *displayName = entry[@"DisplayName"] ?: entry[@"BundleIdentifier"] ?: @"Package Manager";
+            NSString *detail = entry[@"Detail"] ?: entry[@"StateName"] ?: @"Unknown state";
+            return DOPackageManagerRepairError(EIO, [NSString stringWithFormat:@"%@ is still unhealthy after repair: %@", displayName, detail]);
+        }
+    }
+
+    if (!targetVerified) {
+        return DOPackageManagerRepairError(ENOENT, [NSString stringWithFormat:@"Unable to verify package manager %@ after repair.", targetBundleIdentifier]);
+    }
+
+    return nil;
+}
+
+- (NSError *)repairPackageManagers
+{
+    // Preserve the existing Picker / Settings batch semantics.
+    return [self repairPackageManagersMatchingBundleIdentifier:nil selectedOnly:YES];
+}
+
+- (NSError *)repairPackageManagerWithBundleIdentifier:(NSString *)bundleIdentifier
+{
+    if (!bundleIdentifier.length) {
+        return DOPackageManagerRepairError(EINVAL, @"Missing package manager bundle identifier.");
+    }
+
+    // Precise Health repair may fix an installed, unselected package manager,
+    // but App Missing is still blocked above unless the user selected it.
+    return [self repairPackageManagersMatchingBundleIdentifier:bundleIdentifier selectedOnly:NO];
+}
+
+
+- (NSArray<NSString *> *)fakeMountPaths
+{
+    __block NSArray<NSString *> *paths = @[];
+    [self runAsRoot:^{
+        [self runUnsandboxed:^{
+            NSDictionary *configuration = [NSDictionary dictionaryWithContentsOfFile:self.fakeMountConfigurationPath];
+            if ([configuration[@"path"] isKindOfClass:[NSArray class]]) paths = configuration[@"path"];
+        }];
+    }];
+    return paths;
+}
+
+- (BOOL)saveFakeMountPaths:(NSArray<NSString *> *)paths
+{
+    __block BOOL success = NO;
+    [self runAsRoot:^{
+        [self runUnsandboxed:^{
+            NSString *configurationPath = self.fakeMountConfigurationPath;
+            [[NSFileManager defaultManager] createDirectoryAtPath:[configurationPath stringByDeletingLastPathComponent]
+                                      withIntermediateDirectories:YES attributes:nil error:nil];
+            success = [@{@"path" : paths ?: @[]} writeToFile:configurationPath atomically:YES];
+        }];
+    }];
+    return success;
+}
+
+- (int)setFakeMountPath:(NSString *)path mounted:(BOOL)mounted deleteMirror:(BOOL)deleteMirror
+{
+    NSString *standardPath = path.stringByStandardizingPath;
+    if (![path isEqualToString:standardPath] || ![path hasPrefix:@"/"] || [path isEqualToString:@"/"]) return EINVAL;
+
+    __block int result = EPERM;
+    [self runAsRoot:^{
+        [self runUnsandboxed:^{
+            result = exec_cmd(JBROOT_PATH("/basebin/jbctl"), "internal", mounted ? "mount" : "unmount",
+                              standardPath.fileSystemRepresentation, NULL);
+            if (!mounted && deleteMirror && result == 0) {
+                NSString *mirrorPath = [JBROOT_PATH(@"/mnt") stringByAppendingString:standardPath];
+                [[NSFileManager defaultManager] removeItemAtPath:mirrorPath error:nil];
+            }
+        }];
+    }];
+    return result;
+}
+
+- (void)restoreFakeMounts
+{
+    for (NSString *path in self.fakeMountPaths) {
+        int result = [self setFakeMountPath:path mounted:YES deleteMirror:NO];
+        if (result != 0) NSLog(@"Failed restoring fake mount %@: %d", path, result);
+    }
+}
+
+
 @end
