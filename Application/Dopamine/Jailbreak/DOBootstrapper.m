@@ -636,6 +636,39 @@ NSString *const bootstrapErrorDomain = @"BootstrapErrorDomain";
 }
 #endif
 
+// --- ported from RC7 ---
+- (NSError *)installPackageDictionary:(NSDictionary *)packageManagerDict
+{
+    NSString *packageName = packageManagerDict[@"Package"];
+    NSString *displayName = packageManagerDict[@"Display Name"] ?: packageManagerDict[@"Key"] ?: @"package manager";
+    if (!packageName.length) {
+        return [NSError errorWithDomain:bootstrapErrorDomain code:BootstrapErrorCodeFailedFinalising userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Missing bundled package for %@.", displayName]}];
+    }
+
+    NSString *path = [[NSBundle mainBundle].bundlePath stringByAppendingPathComponent:packageName];
+    int r = [self installPackage:path];
+    if (r != 0) {
+        return [NSError errorWithDomain:bootstrapErrorDomain code:BootstrapErrorCodeFailedFinalising userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Failed to install %@: %d\n", displayName, r]}];
+    }
+    return nil;
+}
+
+- (NSError *)installPackageManagerWithKey:(NSString *)packageManagerKey
+{
+    for (NSDictionary *packageManagerDict in [[DOUIManager sharedInstance] availablePackageManagers]) {
+        if ([packageManagerDict[@"Key"] isEqualToString:packageManagerKey]) {
+            return [self installPackageDictionary:packageManagerDict];
+        }
+    }
+    return [NSError errorWithDomain:bootstrapErrorDomain code:BootstrapErrorCodeFailedFinalising userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Unknown package manager: %@", packageManagerKey ?: @"(null)"]}];
+}
+
+- (NSError *)installPackageManagers
+{
+    for (NSDictionary *packageManagerDict in [[DOUIManager sharedInstance] enabledPackageManagers]) {
+        NSError *error = [self installPackageDictionary:packageManagerDict];
+        if (error) return error;
+
 @end
 
 
@@ -1569,38 +1602,6 @@ int getCFMajorVersion(void)
     return nil;
 }
 
-// --- ported from RC7 ---
-- (NSError *)installPackageDictionary:(NSDictionary *)packageManagerDict
-{
-    NSString *packageName = packageManagerDict[@"Package"];
-    NSString *displayName = packageManagerDict[@"Display Name"] ?: packageManagerDict[@"Key"] ?: @"package manager";
-    if (!packageName.length) {
-        return [NSError errorWithDomain:bootstrapErrorDomain code:BootstrapErrorCodeFailedFinalising userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Missing bundled package for %@.", displayName]}];
-    }
-
-    NSString *path = [[NSBundle mainBundle].bundlePath stringByAppendingPathComponent:packageName];
-    int r = [self installPackage:path];
-    if (r != 0) {
-        return [NSError errorWithDomain:bootstrapErrorDomain code:BootstrapErrorCodeFailedFinalising userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Failed to install %@: %d\n", displayName, r]}];
-    }
-    return nil;
-}
-
-- (NSError *)installPackageManagerWithKey:(NSString *)packageManagerKey
-{
-    for (NSDictionary *packageManagerDict in [[DOUIManager sharedInstance] availablePackageManagers]) {
-        if ([packageManagerDict[@"Key"] isEqualToString:packageManagerKey]) {
-            return [self installPackageDictionary:packageManagerDict];
-        }
-    }
-    return [NSError errorWithDomain:bootstrapErrorDomain code:BootstrapErrorCodeFailedFinalising userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"Unknown package manager: %@", packageManagerKey ?: @"(null)"]}];
-}
-
-- (NSError *)installPackageManagers
-{
-    for (NSDictionary *packageManagerDict in [[DOUIManager sharedInstance] enabledPackageManagers]) {
-        NSError *error = [self installPackageDictionary:packageManagerDict];
-        if (error) return error;
 
 @end
 
