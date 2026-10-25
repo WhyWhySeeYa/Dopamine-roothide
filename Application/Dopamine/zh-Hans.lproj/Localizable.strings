@@ -150,10 +150,10 @@
 "Settings_Allow_Old_arm64e_ABI_Libraries" = "允许旧版 arm64e 库";
 "Apply_Workaround" = "应用变通方案";
 "Enabled" = "已启用";
-"Hint_Hide_Jailbreak_Jailbroken" = ""隐藏越狱"可用于临时禁用越狱以绕过某些越狱检测方法。它并非完全有效，也不能隐藏所有内容，但可以使设备恢复到重新越狱前类似重启后的状态。它不是 RootHide 的充分替代品。此选项不提供支持，因为它可能导致问题，请自行承担风险使用。";
+"Hint_Hide_Jailbreak_Jailbroken" = "“隐藏越狱”可用于临时禁用越狱以绕过某些越狱检测方法。它并非完全有效，也不能隐藏所有内容，但可以使设备恢复到重新越狱前类似重启后的状态。它不是 RootHide 的充分替代品。此选项不提供支持，因为它可能导致问题，请自行承担风险使用。";
 "Password_Auth_Required" = "更改移动密码需要身份验证。";
 "Rebuilding Icon Cache" = "正在重建图标缓存";
 "Respring_Cancel" = "取消";
 "Respring_Required" = "需要注销（Respring）";
-"Respring_Required_Message" = "所选内核漏洞需要创建连续内存映射，在此设备上只能通过执行注销的特殊变通方案实现。注销完成后，请重新打开 Dopamine 应用并再次点击"越狱"。";
+"Respring_Required_Message" = "所选内核漏洞需要创建连续内存映射，在此设备上只能通过执行注销的特殊变通方案实现。注销完成后，请重新打开 Dopamine 应用并再次点击“越狱”。";
 "Respring_Required_Notice_A8" = "在您的设备上，该变通方案并非每次都能生效，您可能需要多次应用它，直到此提示不再出现。";
