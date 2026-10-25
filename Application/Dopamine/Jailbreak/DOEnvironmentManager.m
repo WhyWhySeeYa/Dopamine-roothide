@@ -6,6 +6,7 @@
 //
 
 #import "DOEnvironmentManager.h"
+#import <CoreServices/LSApplicationProxy.h>
 #import "UIImage+JPEG2000.h"
 
 #import <sys/sysctl.h>
@@ -1891,5 +1892,11 @@ static BOOL DOPackageManagerBundleInvalidIsReinstallable(NSString *displayName, 
     }
 }
 
+
+// --- ported from RC7 ---
+- (NSString *)fakeMountConfigurationPath
+{
+    return JBROOT_PATH(@"/mnt/newFakePath.plist");
+}
 
 @end

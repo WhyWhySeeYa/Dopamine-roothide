@@ -101,6 +101,7 @@ typedef NS_ENUM(NSUInteger, DOPackageManagerHealthState) {
 - (NSArray<NSDictionary<NSString *, id> *> *)rootHideHealthReport;
 - (NSError * _Nullable)repairPackageManagers;
 - (NSError * _Nullable)repairPackageManagerWithBundleIdentifier:(NSString *)bundleIdentifier;
+@property (nonatomic, readonly) NSString *fakeMountConfigurationPath;
 - (NSArray<NSString *> *)fakeMountPaths;
 - (BOOL)saveFakeMountPaths:(NSArray<NSString *> *)paths;
 - (int)setFakeMountPath:(NSString *)path mounted:(BOOL)mounted deleteMirror:(BOOL)deleteMirror;
