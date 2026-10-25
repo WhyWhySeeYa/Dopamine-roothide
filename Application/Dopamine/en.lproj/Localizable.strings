@@ -146,3 +146,5 @@
 "Mount_Unmount_Delete_Copy" = "Unmount and Delete Copy";
 "Mount_Unmount_Keep_Copy" = "Unmount and Keep Copy";
 "Mount_View_In_Filza" = "View in Filza";
+
+"Settings_Disable_Update" = "Disable Update";

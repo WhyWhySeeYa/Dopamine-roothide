@@ -77,7 +77,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 {
     [super viewDidLoad];
 
-    self.title = @"RootHide Health";
+    self.title = @"RootHide 健康";
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = UIColor.clearColor;
@@ -288,7 +288,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     selected.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.050];
 
     if (!self.healthReport.count && self.refreshInProgress) {
-        cell.textLabel.text = @"Checking RootHide Health…";
+        cell.textLabel.text = @"正在检查 RootHide 健康…";
         cell.textLabel.textColor = [self healthForegroundWithAlpha:0.96];
         cell.detailTextLabel.text = nil;
         cell.accessoryType = UITableViewCellAccessoryNone;
@@ -297,11 +297,11 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     }
 
     NSDictionary<NSString *, id> *entry = self.healthReport[indexPath.row];
-    NSString *stateName = entry[@"StateName"] ?: @"Unknown";
+    NSString *stateName = entry[@"StateName"] ?: @"未知";
     BOOL healthy = [entry[@"Healthy"] boolValue];
     BOOL repairable = [entry[@"Repairable"] boolValue];
 
-    cell.textLabel.text = entry[@"DisplayName"] ?: @"RootHide Health";
+    cell.textLabel.text = entry[@"DisplayName"] ?: @"RootHide 健康";
     cell.textLabel.textColor = [self healthForegroundWithAlpha:0.96];
     cell.detailTextLabel.text = stateName;
     cell.detailTextLabel.numberOfLines = 1;
@@ -323,16 +323,16 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
     NSDictionary<NSString *, id> *entry = self.healthReport[indexPath.row];
     BOOL repairable = [entry[@"Repairable"] boolValue];
-    NSString *stateName = entry[@"StateName"] ?: @"Unknown";
+    NSString *stateName = entry[@"StateName"] ?: @"未知";
     NSString *detail = entry[@"Detail"];
     NSString *message = detail.length ? [NSString stringWithFormat:@"%@\n\n%@", stateName, detail] : stateName;
 
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:entry[@"DisplayName"] ?: @"RootHide Health"
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:entry[@"DisplayName"] ?: @"RootHide 健康"
                                                                    message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:DOLocalizedString(@"Button_OK") style:UIAlertActionStyleCancel handler:nil]];
     if (repairable) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Repair" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"修复" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
             [self repairEntry:entry];
         }]];
     }
@@ -365,7 +365,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
             self.refreshButton.enabled = YES;
             self.refreshButton.alpha = 1.0;
 
-            NSString *title = repairError ? @"RootHide Health Repair Failed" : @"Repair Complete";
+            NSString *title = repairError ? @"RootHide 健康修复失败" : @"修复完成";
             NSString *message = repairError.localizedDescription ?: @"The selected RootHide component is healthy.";
             UIAlertController *resultAlert = [UIAlertController alertControllerWithTitle:title
                                                                                    message:message
@@ -889,7 +889,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
         
         PSSpecifier *headerSpecifier = [PSSpecifier emptyGroupSpecifier];
         [headerSpecifier setProperty:@"DOHeaderCell" forKey:@"headerCellClass"];
-        [headerSpecifier setProperty:[NSString stringWithFormat:@"Settings"] forKey:@"title"];
+        [headerSpecifier setProperty:[NSString stringWithFormat:@"设置"] forKey:@"title"];
         [specifiers addObject:headerSpecifier];
         
         if (envManager.isSupported) {

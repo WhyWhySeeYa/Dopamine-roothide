@@ -23,6 +23,24 @@
 #import <QuartzCore/QuartzCore.h>
 #import <math.h>
 
+static NSString *DOFormattedUptime(void)
+{
+    struct timeval boottime;
+    size_t len = sizeof(boottime);
+    int mib[2] = {CTL_KERN, KERN_BOOTTIME};
+    if (sysctl(mib, 2, &boottime, &len, NULL, 0) < 0) return @"";
+    time_t now = time(NULL);
+    long long up = (long long)now - (long long)boottime.tv_sec;
+    if (up < 0) return @"";
+    long long days = up / 86400;
+    long long hours = (up % 86400) / 3600;
+    long long mins = (up % 3600) / 60;
+    if (days > 0) return [NSString stringWithFormat:@"已运行 %lld 天 %lld 小时", days, hours];
+    if (hours > 0) return [NSString stringWithFormat:@"已运行 %lld 小时 %lld 分钟", hours, mins];
+    return [NSString stringWithFormat:@"已运行 %lld 分钟", mins];
+}
+
+
 @interface UINavigationController (DOCustomGlassSharedBackground)
 - (void)customGlassRefreshSharedBackground;
 - (void)customGlassReplaceSharedBackgroundWithImage:(UIImage *)image;
@@ -1361,7 +1379,7 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
 
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
         [defaults setObject:username forKey:DOCustomGlassUsernameKey];
-        weakSelf.customGlassUsernameLabel.text = username.length > 0 ? username : @"RootHide User";
+        weakSelf.customGlassUsernameLabel.text = username.length > 0 ? username : @"RootHide 用户";
         weakSelf.customGlassUsernameEditor = nil;
     }]];
 
@@ -1488,7 +1506,7 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
     DOHeaderView *headerView = [[DOHeaderView alloc] initWithImage: [UIImage imageNamed:@"Dopamine"] subtitles: @[
         [DOGlobalAppearance mainSubtitleString:[[DOEnvironmentManager sharedManager] versionSupportString]],
         [DOGlobalAppearance secondarySubtitleString:DOLocalizedString(@"Credits_Made_By") withAlpha:0.8],
-        [DOGlobalAppearance secondarySubtitleString:@" " withAlpha:0.8]
+        [DOGlobalAppearance secondarySubtitleString:DOFormattedUptime() withAlpha:0.8]
     ]];
     
     [stackView addArrangedSubview:headerView];
@@ -1992,11 +2010,13 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
     avatarGlass.accessibilityLabel = @"更换头像";
     [avatarGlass addGestureRecognizer:[[UITapGestureRecognizer alloc]
         initWithTarget:self action:@selector(presentCustomGlassAvatarPicker)]];
+    [avatarGlass addGestureRecognizer:[[UILongPressGestureRecognizer alloc]
+        initWithTarget:self action:@selector(presentCustomGlassBackgroundPicker)]];
 
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     NSString *username = [defaults stringForKey:DOCustomGlassUsernameKey];
     if (username.length == 0)
-        username = @"RootHide User";
+        username = @"RootHide 用户";
     NSString *motto = [defaults stringForKey:DOCustomGlassMottoKey];
     if (motto.length == 0)
         motto = @"motto";
@@ -2362,7 +2382,7 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
         [jailbreaker runWithError:&error didRemoveJailbreak:&didRemove showLogs:&showLogs];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error && showLogs) {
-                [[DOUIManager sharedInstance] sendLog:[NSString stringWithFormat:@"Jailbreak failed with error: %@", error] debug:NO];
+                [[DOUIManager sharedInstance] sendLog:[NSString stringWithFormat:@"越狱失败：%@", error] debug:NO];
                 [self.navigationController pushViewController:[[DOLogCrashViewController alloc] initWithTitle:[error localizedDescription]] animated:YES];
             }
             else if (error && !showLogs) {
@@ -2448,7 +2468,7 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         [uiManager completeJailbreak];
-        [uiManager sendLog:@"Rebooting Userspace" debug: NO];
+        [uiManager sendLog:@"正在重启用户空间" debug: NO];
         didFinish = YES;
         [self fadeToBlack: ^{
 
@@ -2457,20 +2477,20 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [NSThread sleepForTimeInterval:0.2];
-        [uiManager sendLog:@"Launching kexploitd" debug: NO];
+        [uiManager sendLog:@"正在启动 kexploitd" debug: NO];
         [NSThread sleepForTimeInterval:0.5];
-        [uiManager sendLog:@"Launching oobPCI" debug: NO];
+        [uiManager sendLog:@"正在启动 oobPCI" debug: NO];
         [NSThread sleepForTimeInterval:0.15];
-        [uiManager sendLog:@"Gaining r/w" debug: NO];
+        [uiManager sendLog:@"正在获取读写权限" debug: NO];
         [NSThread sleepForTimeInterval:0.8];
-        [uiManager sendLog:@"Patchfinding" debug: NO];
+        [uiManager sendLog:@"正在查找补丁" debug: NO];
         NSArray *types = @[@"AMFI", @"PAC", @"KTRR", @"KPP", @"PPL", @"KPF", @"APRR", @"AMCC", @"PAN", @"PXN", @"ASLR", @"OPA"]; //Ever heard of the legendary opa bypass
         while (true)
         {
             [NSThread sleepForTimeInterval:0.6 * rand() / RAND_MAX];
             if (didFinish) break;
             NSString *type = types[arc4random_uniform((uint32_t)types.count)];
-            [uiManager sendLog:[NSString stringWithFormat:@"Bypassing %@", type] debug: NO];
+            [uiManager sendLog:[NSString stringWithFormat:@"正在绕过 %@", type] debug: NO];
         }
     });
 }
