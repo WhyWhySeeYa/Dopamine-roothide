@@ -29,7 +29,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         with:
-            repository: roothide/Dopamine-roothide
             submodules: recursive
 
       - name: Install Procursus
