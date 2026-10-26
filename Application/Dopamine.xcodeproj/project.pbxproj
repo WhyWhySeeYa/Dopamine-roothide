@@ -31,6 +31,7 @@
 		042479B62B66916B0082581B /* DOActionMenuButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 0424799A2B66916B0082581B /* DOActionMenuButton.m */; };
 		042479B72B66916B0082581B /* DOActionMenuView.m in Sources */ = {isa = PBXBuildFile; fileRef = 0424799D2B66916B0082581B /* DOActionMenuView.m */; };
 		042479B82B66916B0082581B /* DOMainViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 0424799F2B66916B0082581B /* DOMainViewController.m */; };
+		BDE026B129A148BCA46739D2 /* DOMainViewControllerOfficial.m in Sources */ = {isa = PBXBuildFile; fileRef = 6C541835EB3C43D2BCA172EB /* DOMainViewControllerOfficial.m */; };
 		042479B92B66916B0082581B /* DOGlobalAppearance.m in Sources */ = {isa = PBXBuildFile; fileRef = 042479A02B66916B0082581B /* DOGlobalAppearance.m */; };
 		042479E52B66B0DD0082581B /* Preferences.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 042479E42B66B0DD0082581B /* Preferences.framework */; };
 		0443A9B12B79D9C10014C933 /* DOPSListItemsController.m in Sources */ = {isa = PBXBuildFile; fileRef = 0443A9AF2B79D9C10014C933 /* DOPSListItemsController.m */; };
@@ -411,6 +412,7 @@
 		042479822B66916B0082581B /* DOHeaderView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOHeaderView.h; sourceTree = "<group>"; };
 		042479832B66916B0082581B /* DOGlobalAppearance.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOGlobalAppearance.h; sourceTree = "<group>"; };
 		042479842B66916B0082581B /* DOMainViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOMainViewController.h; sourceTree = "<group>"; };
+		99335464DBF2405D8B2E1EA0 /* DOMainViewControllerOfficial.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOMainViewControllerOfficial.h; sourceTree = "<group>"; };
 		042479862B66916B0082581B /* DOJailbreakButton.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOJailbreakButton.m; sourceTree = "<group>"; };
 		042479872B66916B0082581B /* DOHeaderView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOHeaderView.m; sourceTree = "<group>"; };
 		042479882B66916B0082581B /* DOUIManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOUIManager.m; sourceTree = "<group>"; };
@@ -434,6 +436,7 @@
 		0424799D2B66916B0082581B /* DOActionMenuView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOActionMenuView.m; sourceTree = "<group>"; };
 		0424799E2B66916B0082581B /* DOActionMenuDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOActionMenuDelegate.h; sourceTree = "<group>"; };
 		0424799F2B66916B0082581B /* DOMainViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOMainViewController.m; sourceTree = "<group>"; };
+		6C541835EB3C43D2BCA172EB /* DOMainViewControllerOfficial.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOMainViewControllerOfficial.m; sourceTree = "<group>"; };
 		042479A02B66916B0082581B /* DOGlobalAppearance.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOGlobalAppearance.m; sourceTree = "<group>"; };
 		042479E42B66B0DD0082581B /* Preferences.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Preferences.framework; path = Frameworks/Preferences.framework; sourceTree = "<group>"; };
 		0443A9AF2B79D9C10014C933 /* DOPSListItemsController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DOPSListItemsController.m; sourceTree = "<group>"; };
@@ -864,6 +867,8 @@
 				042479892B66916B0082581B /* DONavigationController.m */,
 				042479842B66916B0082581B /* DOMainViewController.h */,
 				0424799F2B66916B0082581B /* DOMainViewController.m */,
+				99335464DBF2405D8B2E1EA0 /* DOMainViewControllerOfficial.h */,
+				6C541835EB3C43D2BCA172EB /* DOMainViewControllerOfficial.m */,
 				042479682B66916B0082581B /* DOJailbreakButton.h */,
 				042479862B66916B0082581B /* DOJailbreakButton.m */,
 				042479822B66916B0082581B /* DOHeaderView.h */,
@@ -2276,6 +2281,7 @@
 				042479A52B66916B0082581B /* DOCreditsCell.m in Sources */,
 				8C296BAC2BE049E4007C2AD1 /* DOPSExploitListItemsController.m in Sources */,
 				042479B82B66916B0082581B /* DOMainViewController.m in Sources */,
+				BDE026B129A148BCA46739D2 /* DOMainViewControllerOfficial.m in Sources */,
 				8C029F432B4DFD5D0071DE58 /* DOExploitManager.m in Sources */,
 				042479B02B66916B0082581B /* DOLoadingIndicator.m in Sources */,
 				042479AC2B66916B0082581B /* DOJailbreakButton.m in Sources */,

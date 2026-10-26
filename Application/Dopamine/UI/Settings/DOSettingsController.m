@@ -787,10 +787,12 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)officialUIToggled:(UISwitch *)sender
 {
-    DONavigationController *nav = (DONavigationController *)self.navigationController;
-    if ([nav isKindOfClass:[DONavigationController class]]) {
-        [nav setCustomGlassOfficialUIEnabled:sender.isOn];
-    }
+    [[NSUserDefaults standardUserDefaults] setBool:sender.isOn forKey:@"DOCustomGlassOfficialUIEnabled"];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"需要重启"
+                                                                   message:@"切换界面风格需要重启 Dopamine 后生效"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"好" style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)viewWillAppear:(BOOL)arg1

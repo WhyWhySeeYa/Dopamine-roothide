@@ -6,6 +6,7 @@
 //
 
 #import "DONavigationController.h"
+#import "DOMainViewControllerOfficial.h"
 #import <objc/runtime.h>
 #import "DOModalBackAction.h"
 #import "DOGlobalAppearance.h"
@@ -357,7 +358,14 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
     [self.view setNeedsLayout];
     [self.view layoutIfNeeded];
 
-    [self pushViewController:(self.mainView = [[DOMainViewController alloc] init]) animated:NO];
+    UIViewController *rootVC;
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DOCustomGlassOfficialUIEnabled"]) {
+        rootVC = [[DOMainViewControllerOfficial alloc] init];
+    } else {
+        self.mainView = [[DOMainViewController alloc] init];
+        rootVC = self.mainView;
+    }
+    [self pushViewController:rootVC animated:NO];
     [self setDelegate:self];
     [self setOverrideUserInterfaceStyle:UIUserInterfaceStyleDark];
 }
