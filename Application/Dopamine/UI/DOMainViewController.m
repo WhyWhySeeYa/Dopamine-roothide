@@ -1244,6 +1244,32 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
 
 @end
 
+static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL)
+{
+    if (!videoURL.isFileURL)
+        return nil;
+
+    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoURL options:nil];
+    AVAssetImageGenerator *generator = [[AVAssetImageGenerator alloc] initWithAsset:asset];
+    generator.appliesPreferredTrackTransform = YES;
+    generator.maximumSize = CGSizeMake(2048.0, 2048.0);
+
+    NSError *error = nil;
+    CMTime requestedTime = CMTimeMakeWithSeconds(0.10, 600);
+    CGImageRef frame = [generator copyCGImageAtTime:requestedTime actualTime:NULL error:&error];
+    if (!frame) {
+        error = nil;
+        frame = [generator copyCGImageAtTime:kCMTimeZero actualTime:NULL error:&error];
+    }
+    if (!frame) {
+        NSLog(@"[CustomGlass][VideoWallpaper] poster generation failed: %@", error);
+        return nil;
+    }
+
+    UIImage *poster = [UIImage imageWithCGImage:frame];
+    CGImageRelease(frame);
+    return poster;
+
 static NSInteger DOCustomGlassLivePhotoVideoResourcePriority(PHAssetResourceType type)
 {
     switch (type) {
@@ -1398,6 +1424,10 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
     });
 }
 
+
+static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
+                                         void (^completion)(NSURL *videoURL, UIImage *posterImage, NSError *error));
+static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
 
 @implementation DOMainViewController
 
