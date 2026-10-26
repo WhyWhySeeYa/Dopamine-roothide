@@ -792,6 +792,10 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
     return row;
 }
 
+static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
+                                         void (^completion)(NSURL *videoURL, UIImage *posterImage, NSError *error));
+static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
+
 - (void)presentCustomGlassBackgroundPicker
 {
     PHPickerConfiguration *configuration = [[PHPickerConfiguration alloc] init];
@@ -1426,9 +1430,6 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
 }
 
 
-static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
-                                         void (^completion)(NSURL *videoURL, UIImage *posterImage, NSError *error));
-static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
 
 @implementation DOMainViewController
 
