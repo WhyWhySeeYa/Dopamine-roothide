@@ -756,17 +756,33 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     [super viewDidLoad];
     [self customGlassInstallPageAppearance];
 
-    UIView *officialHeader = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 56)];
-    UILabel *officialLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 0, 240, 56)];
+    UIView *officialHeader = [[UIView alloc] init];
+    officialHeader.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *officialLabel = [[UILabel alloc] init];
+    officialLabel.translatesAutoresizingMaskIntoConstraints = NO;
     officialLabel.text = @"使用官方原界面";
     officialLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
     officialLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.92];
-    UISwitch *officialSwitch = [[UISwitch alloc] initWithFrame:CGRectMake(officialHeader.bounds.size.width - 67, 13, 51, 31)];
+    [officialHeader addSubview:officialLabel];
+
+    UISwitch *officialSwitch = [[UISwitch alloc] init];
+    officialSwitch.translatesAutoresizingMaskIntoConstraints = NO;
     officialSwitch.on = [[NSUserDefaults standardUserDefaults] boolForKey:@"DOCustomGlassOfficialUIEnabled"];
     [officialSwitch addTarget:self action:@selector(officialUIToggled:) forControlEvents:UIControlEventValueChanged];
-    [officialHeader addSubview:officialLabel];
     [officialHeader addSubview:officialSwitch];
-    self.tableView.tableHeaderView = officialHeader;
+
+    [self.view addSubview:officialHeader];
+    [NSLayoutConstraint activateConstraints:@[
+        [officialHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [officialHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [officialHeader.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+        [officialHeader.heightAnchor constraintEqualToConstant:56],
+        [officialLabel.leadingAnchor constraintEqualToAnchor:officialHeader.leadingAnchor constant:16],
+        [officialLabel.centerYAnchor constraintEqualToAnchor:officialHeader.centerYAnchor],
+        [officialSwitch.trailingAnchor constraintEqualToAnchor:officialHeader.trailingAnchor constant:-16],
+        [officialSwitch.centerYAnchor constraintEqualToAnchor:officialHeader.centerYAnchor],
+    ]];
 }
 
 - (void)officialUIToggled:(UISwitch *)sender
