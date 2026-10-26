@@ -491,7 +491,6 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
     if ([[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"officialUIEnabled" fallback:NO]) {
         self.backgroundImageView.hidden = YES;
         self.customGlassWallpaperScrimView.hidden = YES;
-        self.fallbackBlurView.hidden = YES;
         self.customGlassVideoWallpaperView.hidden = YES;
         self.customGlassVideoWallpaperBlurView.hidden = YES;
     }
