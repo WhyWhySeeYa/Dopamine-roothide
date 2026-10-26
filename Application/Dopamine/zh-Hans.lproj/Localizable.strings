@@ -159,3 +159,6 @@
 "Respring_Required_Notice_A8" = "在您的设备上，该变通方案并非每次都能生效，您可能需要多次应用它，直到此提示不再出现。";
 
 "Settings_Disable_Update" = "禁用更新";
+
+"System_Uptime_Prefix" = "已运行";
+"System_Uptime_Less_Than_Minute" = "运行不到 1 分钟";

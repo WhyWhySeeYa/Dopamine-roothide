@@ -148,3 +148,6 @@
 "Mount_View_In_Filza" = "View in Filza";
 
 "Settings_Disable_Update" = "Disable Update";
+
+"System_Uptime_Prefix" = "uptime:";
+"System_Uptime_Less_Than_Minute" = "less than 1 minute";

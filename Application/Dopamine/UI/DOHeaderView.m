@@ -11,6 +11,7 @@
 @interface DOHeaderView ()
 
 @property (nonatomic) UIImageView *logoView;
+@property (nonatomic) UILabel *timerLabel;
 
 @end
 
@@ -50,6 +51,9 @@
             label.attributedText = formatedText;
             label.translatesAutoresizingMaskIntoConstraints = NO;
             [stackView addArrangedSubview:label];
+            if (idx == 2) {
+                self.timerLabel = label;
+            }
         }];
 
         self.translatesAutoresizingMaskIntoConstraints = NO;
@@ -62,9 +66,42 @@
             self.layer.shadowRadius = 30;
             self.layer.shadowOpacity = 0.3;
         }
-
+        
+        [self updateLabel];
+        [NSTimer scheduledTimerWithTimeInterval:60.0 target:self selector:@selector(updateLabel) userInfo:nil repeats:YES];
     }
     return self;
+}
+
+- (void)updateLabel {
+        self.timerLabel.text = [self formatUptime];
+}
+
+- (NSString *)formatUptime {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    NSTimeInterval uptime = ts.tv_sec;
+
+    if (uptime < 60) {
+        NSString *lessThanMinute = NSLocalizedString(@"System_Uptime_Less_Than_Minute", nil);
+        if ([lessThanMinute isEqualToString:@"System_Uptime_Less_Than_Minute"]) {
+            return @"uptime: less than 1 minute";
+        }
+        return lessThanMinute;
+    }
+
+    NSDateComponentsFormatter *formatter = [[NSDateComponentsFormatter alloc] init];
+    formatter.allowedUnits = NSCalendarUnitDay | NSCalendarUnitHour | NSCalendarUnitMinute;
+    formatter.unitsStyle = NSDateComponentsFormatterUnitsStyleFull;
+    formatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropAll;
+    formatter.maximumUnitCount = 3;
+
+    NSString *duration = [formatter stringFromTimeInterval:uptime];
+    NSString *prefix = NSLocalizedString(@"System_Uptime_Prefix", nil);
+    if ([prefix isEqualToString:@"System_Uptime_Prefix"]) {
+        prefix = @"uptime:";
+    }
+    return [NSString stringWithFormat:@"%@ %@", prefix, duration ?: @""];
 }
 
 @end
