@@ -521,6 +521,16 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
     });
 }
 
+- (void)setCustomGlassOfficialUIEnabled:(BOOL)enabled
+{
+    self.backgroundImageView.hidden = enabled;
+    self.customGlassWallpaperScrimView.hidden = enabled;
+    if ([self respondsToSelector:NSSelectorFromString(@"fallbackBlurView")]) {
+        [self setValue:@(enabled) forKeyPath:@"fallbackBlurView.hidden"];
+    }
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:@"DOCustomGlassOfficialUIEnabled"];
+}
+
 - (void)customGlassRefreshSharedBackground
 {
     // A refresh re-resolves the user-media path directly. DOTheme remains only

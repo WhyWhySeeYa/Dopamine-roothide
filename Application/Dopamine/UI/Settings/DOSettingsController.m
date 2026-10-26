@@ -1405,9 +1405,9 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 {
     NSDictionary<NSString *, id> *info = DORHSupporterCurrentLicenseInfo();
     NSString *supporterID = [info[@"sid"] isKindOfClass:NSString.class] ? info[@"sid"] : nil;
-    NSString *status = supporterID.length > 0
-        ? @"Verified"
-        : @"Not Activated";
+    NSString *status = DORHSupporterIsVerified()
+        ? @"已激活 (Verified)"
+        : @"未激活";
     NSString *deviceCode = DORHSupporterDeviceCode();
     NSString *message = [NSString stringWithFormat:@"%@\n\nDevice Code\n%@",
                          status,
