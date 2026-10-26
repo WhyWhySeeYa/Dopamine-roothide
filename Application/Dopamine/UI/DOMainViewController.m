@@ -1269,6 +1269,7 @@ static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL)
     UIImage *poster = [UIImage imageWithCGImage:frame];
     CGImageRelease(frame);
     return poster;
+}
 
 static NSInteger DOCustomGlassLivePhotoVideoResourcePriority(PHAssetResourceType type)
 {
