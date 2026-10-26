@@ -2010,8 +2010,6 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
     avatarGlass.accessibilityLabel = @"更换头像";
     [avatarGlass addGestureRecognizer:[[UITapGestureRecognizer alloc]
         initWithTarget:self action:@selector(presentCustomGlassAvatarPicker)]];
-    [avatarGlass addGestureRecognizer:[[UILongPressGestureRecognizer alloc]
-        initWithTarget:self action:@selector(presentCustomGlassBackgroundPicker)]];
 
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     NSString *username = [defaults stringForKey:DOCustomGlassUsernameKey];

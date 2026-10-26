@@ -104,9 +104,14 @@ static inline NSURL *DOCustomGlassMediaStoreContainerURL(void)
 
         // LaunchServices describes the installed app registration and exposes
         // its real dataContainerURL without depending on process HOME.
-        resolvedURL = DOCustomGlassMediaStoreLSContainerURL(bundleIdentifier);
+        // Prefer process HOME (App sandbox): always correct for a normally
+        // installed app and avoids LS/MCM failures in jailbroken environments.
+        NSString *home = NSHomeDirectory();
+        if (home.length > 0)
+            resolvedURL = [NSURL fileURLWithPath:home isDirectory:YES];
 
-        // MCM is a second explicit bundle-id -> data-container resolver.
+        if (!resolvedURL)
+            resolvedURL = DOCustomGlassMediaStoreLSContainerURL(bundleIdentifier);
         if (!resolvedURL)
             resolvedURL = DOCustomGlassMediaStoreMCMContainerURL(bundleIdentifier);
 
