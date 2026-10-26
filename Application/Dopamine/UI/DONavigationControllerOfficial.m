@@ -6,6 +6,7 @@
 //
 
 #import "DONavigationControllerOfficial.h"
+#import "DOMainViewControllerOfficial.h"
 #import <objc/runtime.h>
 #import "DOModalBackAction.h"
 #import "DOGlobalAppearance.h"
