@@ -340,7 +340,6 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
 {
     self.backgroundImageView.hidden = enabled;
     self.customGlassWallpaperScrimView.hidden = enabled;
-    self.fallbackBlurView.hidden = enabled;
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:@"DOCustomGlassOfficialUIEnabled"];
 }
 
