@@ -25,8 +25,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import <math.h>
 
-
-
 @interface UINavigationController (DOCustomGlassSharedBackground)
 - (void)customGlassRefreshSharedBackground;
 - (void)customGlassReplaceSharedBackgroundWithImage:(UIImage *)image;
@@ -90,6 +88,8 @@ static NSString * const DOCustomGlassTransparencyKey = @"DOCustomGlassTheme.Glas
 static NSString * const DOCustomGlassTintAlphaKey = @"DOCustomGlassTheme.GlassTintAlpha";
 static NSString * const DOCustomGlassUsernameKey = @"DOCustomGlassTheme.Username";
 static NSString * const DOCustomGlassMottoKey = @"DOCustomGlassTheme.Motto";
+static NSString * const DOCustomGlassProfileFocusEnabledKey = @"DOCustomGlassTheme.ProfileFocusEnabled";
+static NSString * const DOCustomGlassProfileFocusDockRightKey = @"DOCustomGlassTheme.ProfileFocusDockRight";
 static NSString * const DOCustomGlassThemeDidChangeNotification = @"DOCustomGlassTheme.DidChange";
 static NSUInteger const DOCustomGlassUsernameCharacterLimit = 20;
 static NSUInteger const DOCustomGlassMottoCharacterLimit = 32;
@@ -792,9 +792,186 @@ static UIButton *DOCustomGlassBackButton(UIViewController *controller)
     return row;
 }
 
+static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL)
+{
+    if (!videoURL.isFileURL)
+        return nil;
+
+    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoURL options:nil];
+    AVAssetImageGenerator *generator = [[AVAssetImageGenerator alloc] initWithAsset:asset];
+    generator.appliesPreferredTrackTransform = YES;
+    generator.maximumSize = CGSizeMake(2048.0, 2048.0);
+
+    NSError *error = nil;
+    CMTime requestedTime = CMTimeMakeWithSeconds(0.10, 600);
+    CGImageRef frame = [generator copyCGImageAtTime:requestedTime actualTime:NULL error:&error];
+    if (!frame) {
+        error = nil;
+        frame = [generator copyCGImageAtTime:kCMTimeZero actualTime:NULL error:&error];
+    }
+    if (!frame) {
+        NSLog(@"[CustomGlass][VideoWallpaper] poster generation failed: %@", error);
+        return nil;
+    }
+
+    UIImage *poster = [UIImage imageWithCGImage:frame];
+    CGImageRelease(frame);
+    return poster;
+}
+
+static NSInteger DOCustomGlassLivePhotoVideoResourcePriority(PHAssetResourceType type)
+{
+    switch (type) {
+        case PHAssetResourceTypeFullSizePairedVideo:
+            return 3;
+        case PHAssetResourceTypePairedVideo:
+            return 2;
+        case PHAssetResourceTypeAdjustmentBasePairedVideo:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static NSInteger DOCustomGlassLivePhotoImageResourcePriority(PHAssetResourceType type)
+{
+    switch (type) {
+        case PHAssetResourceTypeFullSizePhoto:
+            return 3;
+        case PHAssetResourceTypePhoto:
+            return 2;
+        case PHAssetResourceTypeAdjustmentBasePhoto:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static NSError *DOCustomGlassLivePhotoImportError(NSInteger code, NSString *message)
+{
+    return [NSError errorWithDomain:@"DOCustomGlassLivePhotoImport"
+                               code:code
+                           userInfo:@{NSLocalizedDescriptionKey: message ?: @"Live Photo import failed."}];
+}
+
+// PHPicker can vend a PHLivePhoto without granting broad Photo Library access.
+// PHAssetResource then exposes that selected object's paired resources directly,
+// so Live Photo stays inside the same privacy model as the existing picker.
 static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
-                                         void (^completion)(NSURL *videoURL, UIImage *posterImage, NSError *error));
-static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
+                                         void (^completion)(NSURL *videoURL,
+                                                            UIImage *posterImage,
+                                                            NSError *error))
+{
+    if (!livePhoto || !completion)
+        return;
+
+    NSArray<PHAssetResource *> *resources = [PHAssetResource assetResourcesForLivePhoto:livePhoto];
+    PHAssetResource *videoResource = nil;
+    PHAssetResource *imageResource = nil;
+    NSInteger videoPriority = 0;
+    NSInteger imagePriority = 0;
+
+    for (PHAssetResource *resource in resources) {
+        NSInteger candidateVideoPriority = DOCustomGlassLivePhotoVideoResourcePriority(resource.type);
+        if (candidateVideoPriority > videoPriority) {
+            videoPriority = candidateVideoPriority;
+            videoResource = resource;
+        }
+
+        NSInteger candidateImagePriority = DOCustomGlassLivePhotoImageResourcePriority(resource.type);
+        if (candidateImagePriority > imagePriority) {
+            imagePriority = candidateImagePriority;
+            imageResource = resource;
+        }
+    }
+
+    if (!videoResource) {
+        completion(nil, nil,
+                   DOCustomGlassLivePhotoImportError(1, @"Live Photo has no paired video resource."));
+        return;
+    }
+
+    NSURL *temporaryRoot = [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
+    NSURL *temporaryDirectory = [temporaryRoot
+        URLByAppendingPathComponent:[NSString stringWithFormat:@"CustomGlass-LivePhoto-%@",
+                                                               NSUUID.UUID.UUIDString]
+                         isDirectory:YES];
+    NSError *directoryError = nil;
+    if (![[NSFileManager defaultManager] createDirectoryAtURL:temporaryDirectory
+                                  withIntermediateDirectories:YES
+                                                   attributes:nil
+                                                        error:&directoryError]) {
+        completion(nil, nil, directoryError ?: DOCustomGlassLivePhotoImportError(2, @"Unable to create Live Photo staging directory."));
+        return;
+    }
+
+    NSURL *videoURL = [temporaryDirectory URLByAppendingPathComponent:@"paired.mov" isDirectory:NO];
+    NSString *imageExtension = imageResource.originalFilename.pathExtension.lowercaseString;
+    if (imageExtension.length == 0)
+        imageExtension = @"jpg";
+    NSURL *imageURL = [temporaryDirectory
+        URLByAppendingPathComponent:[NSString stringWithFormat:@"poster.%@", imageExtension]
+                         isDirectory:NO];
+
+    PHAssetResourceRequestOptions *options = [[PHAssetResourceRequestOptions alloc] init];
+    options.networkAccessAllowed = YES;
+
+    PHAssetResourceManager *manager = [PHAssetResourceManager defaultManager];
+    dispatch_group_t group = dispatch_group_create();
+    __block NSError *videoError = nil;
+    __block NSError *imageError = nil;
+
+    dispatch_group_enter(group);
+    [manager writeDataForAssetResource:videoResource
+                                toFile:videoURL
+                               options:options
+                     completionHandler:^(NSError *error) {
+        videoError = error;
+        dispatch_group_leave(group);
+    }];
+
+    if (imageResource) {
+        dispatch_group_enter(group);
+        [manager writeDataForAssetResource:imageResource
+                                    toFile:imageURL
+                                   options:options
+                         completionHandler:^(NSError *error) {
+            imageError = error;
+            dispatch_group_leave(group);
+        }];
+    }
+
+    dispatch_group_notify(group,
+                          dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        BOOL hasVideo = !videoError && [fileManager fileExistsAtPath:videoURL.path];
+        if (!hasVideo) {
+            NSError *error = videoError ?:
+                DOCustomGlassLivePhotoImportError(3, @"Unable to export Live Photo paired video.");
+            completion(nil, nil, error);
+            [fileManager removeItemAtURL:temporaryDirectory error:nil];
+            return;
+        }
+
+        UIImage *poster = nil;
+        if (imageResource && !imageError && [fileManager fileExistsAtPath:imageURL.path])
+            poster = [UIImage imageWithContentsOfFile:imageURL.path];
+        if (!poster)
+            poster = DOCustomGlassCreateVideoPosterImage(videoURL);
+
+        if (!poster) {
+            completion(nil, nil,
+                       DOCustomGlassLivePhotoImportError(4, @"Unable to create Live Photo poster image."));
+            [fileManager removeItemAtURL:temporaryDirectory error:nil];
+            return;
+        }
+
+        // The callback must synchronously consume videoURL. MediaStore does so
+        // by copying it into the persistent CustomGlass directory.
+        completion(videoURL, poster, nil);
+        [fileManager removeItemAtURL:temporaryDirectory error:nil];
+    });
+}
 
 - (void)presentCustomGlassBackgroundPicker
 {
@@ -905,7 +1082,6 @@ static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
     importStaticImage();
 }
 
-
 - (void)showThemePlaceholderForTitle:(NSString *)title
 {
     UIAlertController *alert = [UIAlertController
@@ -1009,7 +1185,7 @@ static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
     [contentStack addArrangedSubview:wallpaperLabel];
 
     [contentStack addArrangedSubview:[self themeRowWithTitle:@"背景"
-                                                    subtitle:@"选择首页背景图片"
+                                                    subtitle:@"选择首页背景图片或视频"
                                                    imageName:@"photo"
                                                       action:[UIAction actionWithHandler:^(__kindof UIAction * _Nonnull action) {
         [weakSelf presentCustomGlassBackgroundPicker];
@@ -1235,6 +1411,21 @@ static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
 @property UIImageView *customGlassBackgroundImageView;
 @property DOCustomWallpaperBlurView *customGlassBackgroundBlurView;
 @property UIImageView *customGlassAvatarPhotoView;
+@property(nonatomic, strong) UIView *customGlassAvatarContainerView;
+@property(nonatomic, strong) DOCustomLiquidGlassView *customGlassAvatarMaterialView;
+@property(nonatomic, strong) UIImageView *customGlassAvatarFallbackIconView;
+@property(nonatomic, strong) NSArray<UILabel *> *customGlassHeaderSubtitleLabels;
+@property(nonatomic, strong) NSLayoutConstraint *customGlassAvatarWidthConstraint;
+@property(nonatomic, strong) NSLayoutConstraint *customGlassAvatarHeightConstraint;
+@property(nonatomic, strong) NSLayoutConstraint *customGlassAvatarIconWidthConstraint;
+@property(nonatomic, strong) NSLayoutConstraint *customGlassAvatarIconHeightConstraint;
+@property(nonatomic, strong) NSLayoutConstraint *customGlassAvatarCenterXConstraint;
+@property(nonatomic, strong) NSLayoutConstraint *customGlassAvatarLeadingDockConstraint;
+@property(nonatomic, strong) NSLayoutConstraint *customGlassAvatarTrailingDockConstraint;
+@property(nonatomic, assign) CGFloat customGlassAvatarNormalSize;
+@property(nonatomic, assign) CGFloat customGlassAvatarFocusSize;
+@property(nonatomic, assign) BOOL customGlassProfileFocusEnabled;
+@property(nonatomic, assign) BOOL customGlassProfileFocusDockRight;
 @property UILabel *customGlassUsernameLabel;
 @property UIAlertController *customGlassUsernameEditor;
 @property UILabel *customGlassMottoLabel;
@@ -1247,189 +1438,6 @@ static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL);
 @property(nonatomic) BOOL hideHomeIndicator;
 
 @end
-
-static UIImage *DOCustomGlassCreateVideoPosterImage(NSURL *videoURL)
-{
-    if (!videoURL.isFileURL)
-        return nil;
-
-    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoURL options:nil];
-    AVAssetImageGenerator *generator = [[AVAssetImageGenerator alloc] initWithAsset:asset];
-    generator.appliesPreferredTrackTransform = YES;
-    generator.maximumSize = CGSizeMake(2048.0, 2048.0);
-
-    NSError *error = nil;
-    CMTime requestedTime = CMTimeMakeWithSeconds(0.10, 600);
-    CGImageRef frame = [generator copyCGImageAtTime:requestedTime actualTime:NULL error:&error];
-    if (!frame) {
-        error = nil;
-        frame = [generator copyCGImageAtTime:kCMTimeZero actualTime:NULL error:&error];
-    }
-    if (!frame) {
-        NSLog(@"[CustomGlass][VideoWallpaper] poster generation failed: %@", error);
-        return nil;
-    }
-
-    UIImage *poster = [UIImage imageWithCGImage:frame];
-    CGImageRelease(frame);
-    return poster;
-}
-
-static NSInteger DOCustomGlassLivePhotoVideoResourcePriority(PHAssetResourceType type)
-{
-    switch (type) {
-        case PHAssetResourceTypeFullSizePairedVideo:
-            return 3;
-        case PHAssetResourceTypePairedVideo:
-            return 2;
-        case PHAssetResourceTypeAdjustmentBasePairedVideo:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
-static NSInteger DOCustomGlassLivePhotoImageResourcePriority(PHAssetResourceType type)
-{
-    switch (type) {
-        case PHAssetResourceTypeFullSizePhoto:
-            return 3;
-        case PHAssetResourceTypePhoto:
-            return 2;
-        case PHAssetResourceTypeAdjustmentBasePhoto:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
-static NSError *DOCustomGlassLivePhotoImportError(NSInteger code, NSString *message)
-{
-    return [NSError errorWithDomain:@"DOCustomGlassLivePhotoImport"
-                               code:code
-                           userInfo:@{NSLocalizedDescriptionKey: message ?: @"Live Photo import failed."}];
-}
-
-// PHPicker can vend a PHLivePhoto without granting broad Photo Library access.
-// PHAssetResource then exposes that selected object's paired resources directly,
-// so Live Photo stays inside the same privacy model as the existing picker.
-static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
-                                         void (^completion)(NSURL *videoURL,
-                                                            UIImage *posterImage,
-                                                            NSError *error))
-{
-    if (!livePhoto || !completion)
-        return;
-
-    NSArray<PHAssetResource *> *resources = [PHAssetResource assetResourcesForLivePhoto:livePhoto];
-    PHAssetResource *videoResource = nil;
-    PHAssetResource *imageResource = nil;
-    NSInteger videoPriority = 0;
-    NSInteger imagePriority = 0;
-
-    for (PHAssetResource *resource in resources) {
-        NSInteger candidateVideoPriority = DOCustomGlassLivePhotoVideoResourcePriority(resource.type);
-        if (candidateVideoPriority > videoPriority) {
-            videoPriority = candidateVideoPriority;
-            videoResource = resource;
-        }
-
-        NSInteger candidateImagePriority = DOCustomGlassLivePhotoImageResourcePriority(resource.type);
-        if (candidateImagePriority > imagePriority) {
-            imagePriority = candidateImagePriority;
-            imageResource = resource;
-        }
-    }
-
-    if (!videoResource) {
-        completion(nil, nil,
-                   DOCustomGlassLivePhotoImportError(1, @"Live Photo has no paired video resource."));
-        return;
-    }
-
-    NSURL *temporaryRoot = [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
-    NSURL *temporaryDirectory = [temporaryRoot
-        URLByAppendingPathComponent:[NSString stringWithFormat:@"CustomGlass-LivePhoto-%@",
-                                                               NSUUID.UUID.UUIDString]
-                         isDirectory:YES];
-    NSError *directoryError = nil;
-    if (![[NSFileManager defaultManager] createDirectoryAtURL:temporaryDirectory
-                                  withIntermediateDirectories:YES
-                                                   attributes:nil
-                                                        error:&directoryError]) {
-        completion(nil, nil, directoryError ?: DOCustomGlassLivePhotoImportError(2, @"Unable to create Live Photo staging directory."));
-        return;
-    }
-
-    NSURL *videoURL = [temporaryDirectory URLByAppendingPathComponent:@"paired.mov" isDirectory:NO];
-    NSString *imageExtension = imageResource.originalFilename.pathExtension.lowercaseString;
-    if (imageExtension.length == 0)
-        imageExtension = @"jpg";
-    NSURL *imageURL = [temporaryDirectory
-        URLByAppendingPathComponent:[NSString stringWithFormat:@"poster.%@", imageExtension]
-                         isDirectory:NO];
-
-    PHAssetResourceRequestOptions *options = [[PHAssetResourceRequestOptions alloc] init];
-    options.networkAccessAllowed = YES;
-
-    PHAssetResourceManager *manager = [PHAssetResourceManager defaultManager];
-    dispatch_group_t group = dispatch_group_create();
-    __block NSError *videoError = nil;
-    __block NSError *imageError = nil;
-
-    dispatch_group_enter(group);
-    [manager writeDataForAssetResource:videoResource
-                                toFile:videoURL
-                               options:options
-                     completionHandler:^(NSError *error) {
-        videoError = error;
-        dispatch_group_leave(group);
-    }];
-
-    if (imageResource) {
-        dispatch_group_enter(group);
-        [manager writeDataForAssetResource:imageResource
-                                    toFile:imageURL
-                                   options:options
-                         completionHandler:^(NSError *error) {
-            imageError = error;
-            dispatch_group_leave(group);
-        }];
-    }
-
-    dispatch_group_notify(group,
-                          dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSFileManager *fileManager = [NSFileManager defaultManager];
-        BOOL hasVideo = !videoError && [fileManager fileExistsAtPath:videoURL.path];
-        if (!hasVideo) {
-            NSError *error = videoError ?:
-                DOCustomGlassLivePhotoImportError(3, @"Unable to export Live Photo paired video.");
-            completion(nil, nil, error);
-            [fileManager removeItemAtURL:temporaryDirectory error:nil];
-            return;
-        }
-
-        UIImage *poster = nil;
-        if (imageResource && !imageError && [fileManager fileExistsAtPath:imageURL.path])
-            poster = [UIImage imageWithContentsOfFile:imageURL.path];
-        if (!poster)
-            poster = DOCustomGlassCreateVideoPosterImage(videoURL);
-
-        if (!poster) {
-            completion(nil, nil,
-                       DOCustomGlassLivePhotoImportError(4, @"Unable to create Live Photo poster image."));
-            [fileManager removeItemAtURL:temporaryDirectory error:nil];
-            return;
-        }
-
-        // The callback must synchronously consume videoURL. MediaStore does so
-        // by copying it into the persistent CustomGlass directory.
-        completion(videoURL, poster, nil);
-        [fileManager removeItemAtURL:temporaryDirectory error:nil];
-    });
-}
-
-
 
 @implementation DOMainViewController
 
@@ -1614,7 +1622,7 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
 
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
         [defaults setObject:username forKey:DOCustomGlassUsernameKey];
-        weakSelf.customGlassUsernameLabel.text = username.length > 0 ? username : @"RootHide 用户";
+        weakSelf.customGlassUsernameLabel.text = username.length > 0 ? username : @"RootHide User";
         weakSelf.customGlassUsernameEditor = nil;
     }]];
 
@@ -1741,7 +1749,7 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
     DOHeaderView *headerView = [[DOHeaderView alloc] initWithImage: [UIImage imageNamed:@"Dopamine"] subtitles: @[
         [DOGlobalAppearance mainSubtitleString:[[DOEnvironmentManager sharedManager] versionSupportString]],
         [DOGlobalAppearance secondarySubtitleString:DOLocalizedString(@"Credits_Made_By") withAlpha:0.8],
-        [DOGlobalAppearance secondarySubtitleString:@"" withAlpha:0.8]
+        [DOGlobalAppearance secondarySubtitleString:@" " withAlpha:0.8]
     ]];
     
     [stackView addArrangedSubview:headerView];
@@ -2030,6 +2038,179 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
     return innerGlass;
 }
 
+
+- (void)setCustomGlassProfileFocusEnabled:(BOOL)enabled
+                                 dockRight:(BOOL)dockRight
+                                  animated:(BOOL)animated
+                                   persist:(BOOL)persist
+{
+    if (!self.customGlassAvatarContainerView)
+        return;
+
+    self.customGlassProfileFocusEnabled = enabled;
+    self.customGlassProfileFocusDockRight = dockRight;
+
+    if (persist) {
+        NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+        [defaults setBool:enabled forKey:DOCustomGlassProfileFocusEnabledKey];
+        [defaults setBool:dockRight forKey:DOCustomGlassProfileFocusDockRightKey];
+    }
+
+    [self.view layoutIfNeeded];
+
+    if (enabled) {
+        self.customGlassAvatarCenterXConstraint.active = NO;
+        self.customGlassAvatarLeadingDockConstraint.active = !dockRight;
+        self.customGlassAvatarTrailingDockConstraint.active = dockRight;
+    }
+    else {
+        self.customGlassAvatarLeadingDockConstraint.active = NO;
+        self.customGlassAvatarTrailingDockConstraint.active = NO;
+        self.customGlassAvatarCenterXConstraint.active = YES;
+    }
+
+    CGFloat avatarSize = enabled ? self.customGlassAvatarFocusSize : self.customGlassAvatarNormalSize;
+    CGFloat avatarIconSize = avatarSize * 0.62;
+    self.customGlassAvatarWidthConstraint.constant = avatarSize;
+    self.customGlassAvatarHeightConstraint.constant = avatarSize;
+    self.customGlassAvatarIconWidthConstraint.constant = avatarIconSize;
+    self.customGlassAvatarIconHeightConstraint.constant = avatarIconSize;
+
+    DOCustomLiquidGlassView *avatarMaterial = self.customGlassAvatarMaterialView;
+    if (avatarMaterial) {
+        avatarMaterial.preferredCornerRadius = avatarSize / 2.0;
+        avatarMaterial.materialScale = enabled ? 0.70 : 0.46;
+        avatarMaterial.suppressBackdrop = NO;
+        [avatarMaterial reloadMaterial];
+    }
+
+    self.customGlassAvatarContainerView.accessibilityLabel = enabled ? @"恢复个人资料" : @"更换头像";
+    self.customGlassUsernameLabel.userInteractionEnabled = !enabled;
+    self.customGlassMottoLabel.userInteractionEnabled = !enabled;
+
+    void (^updates)(void) = ^{
+        self.customGlassAvatarContainerView.transform = CGAffineTransformIdentity;
+        self.customGlassAvatarContainerView.layer.cornerRadius = avatarSize / 2.0;
+        self.customGlassAvatarContainerView.layer.shadowOpacity = enabled ? 0.035 : 0.16;
+        self.customGlassAvatarContainerView.layer.shadowRadius = enabled ? 4.0 : 6.0;
+        self.customGlassAvatarPhotoView.layer.cornerRadius = MAX(0.0, (avatarSize - 2.0) / 2.0);
+        self.customGlassAvatarPhotoView.alpha = enabled ? 0.34 : 1.0;
+        self.customGlassAvatarFallbackIconView.alpha = enabled ? 0.44 : 1.0;
+
+        CGFloat detailAlpha = enabled ? 0.0 : 1.0;
+        self.customGlassUsernameLabel.alpha = detailAlpha;
+        self.customGlassSystemLabel.alpha = detailAlpha;
+        self.customGlassMottoLabel.alpha = detailAlpha;
+        for (UILabel *label in self.customGlassHeaderSubtitleLabels)
+            label.alpha = detailAlpha;
+
+        [self.view layoutIfNeeded];
+    };
+
+    if (animated) {
+        [UIView animateWithDuration:0.26
+                              delay:0.0
+             usingSpringWithDamping:0.88
+              initialSpringVelocity:0.35
+                            options:UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionBeginFromCurrentState
+                         animations:updates
+                         completion:nil];
+    }
+    else {
+        updates();
+    }
+}
+
+- (void)customGlassAvatarTapped:(UITapGestureRecognizer *)gesture
+{
+    if (gesture.state != UIGestureRecognizerStateEnded)
+        return;
+
+    if (self.customGlassProfileFocusEnabled) {
+        [self setCustomGlassProfileFocusEnabled:NO
+                                      dockRight:self.customGlassProfileFocusDockRight
+                                       animated:YES
+                                        persist:YES];
+        return;
+    }
+
+    [self presentCustomGlassAvatarPicker];
+}
+
+- (void)customGlassAvatarPanned:(UIPanGestureRecognizer *)gesture
+{
+    UIView *avatarView = self.customGlassAvatarContainerView;
+    if (!avatarView)
+        return;
+
+    CGPoint translation = [gesture translationInView:self.view];
+    CGPoint velocity = [gesture velocityInView:self.view];
+
+    CGRect screenFrame = self.view.bounds;
+    CGPoint avatarCenter = [avatarView.superview convertPoint:avatarView.center toView:self.view];
+
+    CGFloat focusPeekCenter = MAX(8.0, self.customGlassAvatarFocusSize * 0.20);
+    CGFloat leftTargetX = CGRectGetMinX(screenFrame) + focusPeekCenter;
+    CGFloat rightTargetX = CGRectGetMaxX(screenFrame) - focusPeekCenter;
+    CGFloat leftTravel = leftTargetX - avatarCenter.x;
+    CGFloat rightTravel = rightTargetX - avatarCenter.x;
+
+    if (gesture.state == UIGestureRecognizerStateChanged) {
+        CGFloat drag = translation.x;
+        if (self.customGlassProfileFocusEnabled) {
+            BOOL towardCenter = self.customGlassProfileFocusDockRight ? (drag < 0.0) : (drag > 0.0);
+            drag *= towardCenter ? 0.72 : 0.10;
+        }
+        else {
+            drag = MAX(leftTravel, MIN(rightTravel, drag));
+        }
+        avatarView.transform = CGAffineTransformMakeTranslation(drag, 0.0);
+        return;
+    }
+
+    if (gesture.state != UIGestureRecognizerStateEnded &&
+        gesture.state != UIGestureRecognizerStateCancelled &&
+        gesture.state != UIGestureRecognizerStateFailed)
+        return;
+
+    if (self.customGlassProfileFocusEnabled) {
+        BOOL towardCenter = self.customGlassProfileFocusDockRight ?
+            (translation.x < 0.0) : (translation.x > 0.0);
+        BOOL shouldRestore = towardCenter &&
+            (fabs(translation.x) >= 28.0 || fabs(velocity.x) >= 360.0);
+        if (shouldRestore) {
+            [self setCustomGlassProfileFocusEnabled:NO
+                                          dockRight:self.customGlassProfileFocusDockRight
+                                           animated:YES
+                                            persist:YES];
+        }
+        else {
+            [UIView animateWithDuration:0.20
+                             animations:^{ avatarView.transform = CGAffineTransformIdentity; }];
+        }
+        return;
+    }
+
+    CGFloat edgeMagnet = 14.0;
+    BOOL reachedLeftEdge = translation.x <= (leftTravel + edgeMagnet);
+    BOOL reachedRightEdge = translation.x >= (rightTravel - edgeMagnet);
+    if (!reachedLeftEdge && !reachedRightEdge) {
+        [UIView animateWithDuration:0.22
+                              delay:0.0
+             usingSpringWithDamping:0.82
+              initialSpringVelocity:0.25
+                            options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
+                         animations:^{ avatarView.transform = CGAffineTransformIdentity; }
+                         completion:nil];
+        return;
+    }
+
+    [self setCustomGlassProfileFocusEnabled:YES
+                                  dockRight:reachedRightEdge
+                                   animated:YES
+                                    persist:YES];
+}
+
 - (void)configureCustomGlassHeaderView:(DOHeaderView *)headerView logoHeight:(CGFloat)logoHeight subtitleScale:(CGFloat)subtitleScale
 {
     // Keep the Dopamine logo centered, but present version / author / uptime as
@@ -2179,6 +2360,18 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
         [DOGlobalAppearance secondarySubtitleString:@" " withAlpha:0.8]
     ]];
     [self configureCustomGlassHeaderView:headerView logoHeight:logoHeight subtitleScale:headerSubtitleScale];
+
+    NSMutableArray<UILabel *> *headerSubtitleLabels = [NSMutableArray array];
+    for (UIView *subview in headerView.subviews) {
+        if (![subview isKindOfClass:[UIStackView class]])
+            continue;
+        for (UIView *arrangedSubview in ((UIStackView *)subview).arrangedSubviews) {
+            if ([arrangedSubview isKindOfClass:[UILabel class]])
+                [headerSubtitleLabels addObject:(UILabel *)arrangedSubview];
+        }
+    }
+    self.customGlassHeaderSubtitleLabels = headerSubtitleLabels;
+
     [mainStack addArrangedSubview:headerView];
     [mainStack setCustomSpacing:headerToProfileSpacing afterView:headerView];
 
@@ -2192,19 +2385,49 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
     avatarGlass.backgroundColor = UIColor.clearColor;
     avatarGlass.layer.cornerRadius = avatarSize / 2.0;
     avatarGlass.layer.cornerCurve = kCACornerCurveContinuous;
-    avatarGlass.layer.borderWidth = 1.0;
-    avatarGlass.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.22].CGColor;
     avatarGlass.layer.shadowColor = UIColor.blackColor.CGColor;
     avatarGlass.layer.shadowOpacity = 0.16;
     avatarGlass.layer.shadowRadius = 6.0;
     avatarGlass.layer.shadowOffset = CGSizeMake(0.0, 3.0);
-    [profileView addSubview:avatarGlass];
+    [self.view addSubview:avatarGlass];
+    self.customGlassAvatarContainerView = avatarGlass;
+    self.customGlassAvatarNormalSize = avatarSize;
+    self.customGlassAvatarFocusSize = isPad ? 58.0 : (compactLayout ? 46.0 : 50.0);
+
+    self.customGlassAvatarWidthConstraint =
+        [avatarGlass.widthAnchor constraintEqualToConstant:avatarSize];
+    self.customGlassAvatarHeightConstraint =
+        [avatarGlass.heightAnchor constraintEqualToConstant:avatarSize];
+    self.customGlassAvatarCenterXConstraint =
+        [avatarGlass.centerXAnchor constraintEqualToAnchor:profileView.centerXAnchor];
+
+    CGFloat focusPeekCenter = MAX(8.0, self.customGlassAvatarFocusSize * 0.20);
+    self.customGlassAvatarLeadingDockConstraint =
+        [avatarGlass.centerXAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:focusPeekCenter];
+    self.customGlassAvatarTrailingDockConstraint =
+        [avatarGlass.centerXAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-focusPeekCenter];
 
     [NSLayoutConstraint activateConstraints:@[
-        [avatarGlass.widthAnchor constraintEqualToConstant:avatarSize],
-        [avatarGlass.heightAnchor constraintEqualToConstant:avatarSize],
-        [avatarGlass.centerXAnchor constraintEqualToAnchor:profileView.centerXAnchor],
+        self.customGlassAvatarWidthConstraint,
+        self.customGlassAvatarHeightConstraint,
+        self.customGlassAvatarCenterXConstraint,
         [avatarGlass.topAnchor constraintEqualToAnchor:profileView.topAnchor]
+    ]];
+
+    DOCustomLiquidGlassView *avatarMaterial =
+        [[DOCustomLiquidGlassView alloc] initWithCornerRadius:(avatarSize / 2.0) baseTintAlpha:0.03];
+    avatarMaterial.translatesAutoresizingMaskIntoConstraints = NO;
+    avatarMaterial.userInteractionEnabled = NO;
+    avatarMaterial.materialScale = 0.46;
+    avatarMaterial.suppressBackdrop = NO;
+    [avatarMaterial reloadMaterial];
+    [avatarGlass addSubview:avatarMaterial];
+    self.customGlassAvatarMaterialView = avatarMaterial;
+    [NSLayoutConstraint activateConstraints:@[
+        [avatarMaterial.leadingAnchor constraintEqualToAnchor:avatarGlass.leadingAnchor],
+        [avatarMaterial.trailingAnchor constraintEqualToAnchor:avatarGlass.trailingAnchor],
+        [avatarMaterial.topAnchor constraintEqualToAnchor:avatarGlass.topAnchor],
+        [avatarMaterial.bottomAnchor constraintEqualToAnchor:avatarGlass.bottomAnchor]
     ]];
 
     UIImageView *avatarImageView = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"person.crop.circle.fill"]];
@@ -2212,11 +2435,16 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
     avatarImageView.tintColor = [UIColor colorWithWhite:1.0 alpha:0.92];
     avatarImageView.contentMode = UIViewContentModeScaleAspectFit;
     [avatarGlass addSubview:avatarImageView];
+    self.customGlassAvatarFallbackIconView = avatarImageView;
+    self.customGlassAvatarIconWidthConstraint =
+        [avatarImageView.widthAnchor constraintEqualToConstant:avatarIconSize];
+    self.customGlassAvatarIconHeightConstraint =
+        [avatarImageView.heightAnchor constraintEqualToConstant:avatarIconSize];
     [NSLayoutConstraint activateConstraints:@[
         [avatarImageView.centerXAnchor constraintEqualToAnchor:avatarGlass.centerXAnchor],
         [avatarImageView.centerYAnchor constraintEqualToAnchor:avatarGlass.centerYAnchor],
-        [avatarImageView.widthAnchor constraintEqualToConstant:avatarIconSize],
-        [avatarImageView.heightAnchor constraintEqualToConstant:avatarIconSize]
+        self.customGlassAvatarIconWidthConstraint,
+        self.customGlassAvatarIconHeightConstraint
     ]];
 
     self.customGlassAvatarPhotoView = [[UIImageView alloc] init];
@@ -2244,12 +2472,14 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
     avatarGlass.isAccessibilityElement = YES;
     avatarGlass.accessibilityLabel = @"更换头像";
     [avatarGlass addGestureRecognizer:[[UITapGestureRecognizer alloc]
-        initWithTarget:self action:@selector(presentCustomGlassAvatarPicker)]];
+        initWithTarget:self action:@selector(customGlassAvatarTapped:)]];
+    [avatarGlass addGestureRecognizer:[[UIPanGestureRecognizer alloc]
+        initWithTarget:self action:@selector(customGlassAvatarPanned:)]];
 
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     NSString *username = [defaults stringForKey:DOCustomGlassUsernameKey];
     if (username.length == 0)
-        username = @"RootHide 用户";
+        username = @"RootHide User";
     NSString *motto = [defaults stringForKey:DOCustomGlassMottoKey];
     if (motto.length == 0)
         motto = @"motto";
@@ -2310,6 +2540,16 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
         [mottoLabel.bottomAnchor constraintEqualToAnchor:profileView.bottomAnchor],
         mottoMaxWidth
     ]];
+
+    NSUserDefaults *profileDefaults = NSUserDefaults.standardUserDefaults;
+    BOOL focusEnabled = [profileDefaults boolForKey:DOCustomGlassProfileFocusEnabledKey];
+    BOOL focusDockRight = [profileDefaults objectForKey:DOCustomGlassProfileFocusDockRightKey]
+        ? [profileDefaults boolForKey:DOCustomGlassProfileFocusDockRightKey]
+        : YES;
+    [self setCustomGlassProfileFocusEnabled:focusEnabled
+                                  dockRight:focusDockRight
+                                   animated:NO
+                                    persist:NO];
 
     UIView *actionGrid = [[UIView alloc] init];
     actionGrid.translatesAutoresizingMaskIntoConstraints = NO;
@@ -2615,7 +2855,7 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
         [jailbreaker runWithError:&error didRemoveJailbreak:&didRemove showLogs:&showLogs];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error && showLogs) {
-                [[DOUIManager sharedInstance] sendLog:[NSString stringWithFormat:@"越狱失败：%@", error] debug:NO];
+                [[DOUIManager sharedInstance] sendLog:[NSString stringWithFormat:@"Jailbreak failed with error: %@", error] debug:NO];
                 [self.navigationController pushViewController:[[DOLogCrashViewController alloc] initWithTitle:[error localizedDescription]] animated:YES];
             }
             else if (error && !showLogs) {
@@ -2701,7 +2941,7 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         [uiManager completeJailbreak];
-        [uiManager sendLog:@"正在重启用户空间" debug: NO];
+        [uiManager sendLog:@"Rebooting Userspace" debug: NO];
         didFinish = YES;
         [self fadeToBlack: ^{
 
@@ -2710,20 +2950,20 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [NSThread sleepForTimeInterval:0.2];
-        [uiManager sendLog:@"正在启动 kexploitd" debug: NO];
+        [uiManager sendLog:@"Launching kexploitd" debug: NO];
         [NSThread sleepForTimeInterval:0.5];
-        [uiManager sendLog:@"正在启动 oobPCI" debug: NO];
+        [uiManager sendLog:@"Launching oobPCI" debug: NO];
         [NSThread sleepForTimeInterval:0.15];
-        [uiManager sendLog:@"正在获取读写权限" debug: NO];
+        [uiManager sendLog:@"Gaining r/w" debug: NO];
         [NSThread sleepForTimeInterval:0.8];
-        [uiManager sendLog:@"正在查找补丁" debug: NO];
+        [uiManager sendLog:@"Patchfinding" debug: NO];
         NSArray *types = @[@"AMFI", @"PAC", @"KTRR", @"KPP", @"PPL", @"KPF", @"APRR", @"AMCC", @"PAN", @"PXN", @"ASLR", @"OPA"]; //Ever heard of the legendary opa bypass
         while (true)
         {
             [NSThread sleepForTimeInterval:0.6 * rand() / RAND_MAX];
             if (didFinish) break;
             NSString *type = types[arc4random_uniform((uint32_t)types.count)];
-            [uiManager sendLog:[NSString stringWithFormat:@"正在绕过 %@", type] debug: NO];
+            [uiManager sendLog:[NSString stringWithFormat:@"Bypassing %@", type] debug: NO];
         }
     });
 }
