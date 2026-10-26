@@ -336,6 +336,14 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
     });
 }
 
+- (void)setCustomGlassOfficialUIEnabled:(BOOL)enabled
+{
+    self.backgroundImageView.hidden = enabled;
+    self.customGlassWallpaperScrimView.hidden = enabled;
+    self.fallbackBlurView.hidden = enabled;
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:@"DOCustomGlassOfficialUIEnabled"];
+}
+
 - (void)customGlassRefreshSharedBackground
 {
     // A refresh re-resolves the user-media path directly. DOTheme remains only
