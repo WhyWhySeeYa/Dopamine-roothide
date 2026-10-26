@@ -11,6 +11,7 @@
 #import "DOEnvironmentManager.h"
 #import "DOJailbreaker.h"
 #import "DOGlobalAppearance.h"
+#import "DONavigationController.h"
 #import "DOActionMenuButton.h"
 #import "DOUpdateViewController.h"
 #import "DOLogCrashViewController.h"
@@ -1307,8 +1308,9 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
 
 - (void)officialUIToggled:(UISwitch *)sender
 {
-    if ([self.navigationController respondsToSelector:@selector(setCustomGlassOfficialUIEnabled:)]) {
-        [(id)self.navigationController setCustomGlassOfficialUIEnabled:sender.isOn];
+    DONavigationController *nav = (DONavigationController *)self.navigationController;
+    if ([nav isKindOfClass:[DONavigationController class]]) {
+        [nav setCustomGlassOfficialUIEnabled:sender.isOn];
     }
 }
 
