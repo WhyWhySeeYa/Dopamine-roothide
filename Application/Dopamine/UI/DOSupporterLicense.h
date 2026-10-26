@@ -427,13 +427,16 @@ static inline NSDictionary<NSString *, id> *DORHSupporterCurrentLicenseInfo(void
 
 static inline BOOL DORHSupporterIsVerified(void)
 {
-    return DORHSupporterCurrentLicenseInfo() != nil;
+    // Custom Glass build: treat as verified so UI features stay unlocked even
+    // when no supporter license has been activated on this installation.
+    return YES;
 }
 
 static inline NSString *DORHSupporterCurrentID(void)
 {
     NSString *supporterID = DORHSupporterCurrentLicenseInfo()[@"sid"];
-    return [supporterID isKindOfClass:NSString.class] ? supporterID : nil;
+    if ([supporterID isKindOfClass:NSString.class]) return supporterID;
+    return @"Supporter";
 }
 
 static inline BOOL DORHSupporterStoreLicenseCode(NSString *licenseCode, NSError **error)
