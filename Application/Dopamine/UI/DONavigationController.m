@@ -6,6 +6,7 @@
 //
 
 #import "DONavigationController.h"
+#import "DOPreferenceManager.h"
 #import "DOMainViewControllerOfficial.h"
 #import <objc/runtime.h>
 #import "DOModalBackAction.h"
@@ -486,6 +487,14 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
         [self.backAction.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.backAction.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
+
+    if ([[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"officialUIEnabled" fallback:NO]) {
+        self.backgroundImageView.hidden = YES;
+        self.customGlassWallpaperScrimView.hidden = YES;
+        self.fallbackBlurView.hidden = YES;
+        self.customGlassVideoWallpaperView.hidden = YES;
+        self.customGlassVideoWallpaperBlurView.hidden = YES;
+    }
 }
 
 - (void)customGlassApplySharedBackgroundBlurIntensity:(CGFloat)blurIntensity

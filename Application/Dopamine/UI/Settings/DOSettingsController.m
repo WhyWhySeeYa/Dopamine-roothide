@@ -701,6 +701,9 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
 - (void)customGlassInstallPageAppearance
 {
+    if ([[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"officialUIEnabled" fallback:NO]) {
+        return;
+    }
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = UIColor.clearColor;
@@ -1149,7 +1152,24 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
             }
         }
         
-        PSSpecifier *bootlogoGropSpecifier = [PSSpecifier emptyGroupSpecifier];
+        PSSpecifier *uiStyleGroupSpecifier = [PSSpecifier emptyGroupSpecifier];
+    uiStyleGroupSpecifier.name = @"界面风格";
+    [specifiers addObject:uiStyleGroupSpecifier];
+
+    PSSpecifier *officialUISpecifier = [PSSpecifier preferenceSpecifierNamed:@"使用官方原界面"
+                                                                     target:self
+                                                                        set:defSetter
+                                                                        get:defGetter
+                                                                     detail:nil
+                                                                       cell:PSSwitchCell
+                                                                       edit:nil];
+    [officialUISpecifier setProperty:@YES forKey:@"enabled"];
+    [officialUISpecifier setProperty:@"officialUIEnabled" forKey:@"key"];
+    [officialUISpecifier setProperty:@NO forKey:@"default"];
+    officialUISpecifier.identifier = @"officialUIEnabled";
+    [specifiers addObject:officialUISpecifier];
+
+    PSSpecifier *bootlogoGropSpecifier = [PSSpecifier emptyGroupSpecifier];
         bootlogoGropSpecifier.name = DOLocalizedString(@"Section_Boot_Logo");
         [specifiers addObject:bootlogoGropSpecifier];
 
