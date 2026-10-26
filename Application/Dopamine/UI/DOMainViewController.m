@@ -1267,23 +1267,6 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
                                                                    slider:self.glassTintSlider
                                                                valueLabel:self.glassTintValueLabel]];
 
-    UIStackView *officialRow = [[UIStackView alloc] init];
-    officialRow.axis = UILayoutConstraintAxisHorizontal;
-    officialRow.alignment = UIStackViewAlignmentCenter;
-    officialRow.spacing = 10.0;
-
-    UILabel *officialTitle = [[UILabel alloc] init];
-    officialTitle.text = @"使用官方原界面";
-    officialTitle.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
-    officialTitle.textColor = [UIColor colorWithWhite:1.0 alpha:0.92];
-    [officialRow addArrangedSubview:officialTitle];
-
-    UISwitch *officialSwitch = [[UISwitch alloc] init];
-    officialSwitch.on = [[NSUserDefaults standardUserDefaults] boolForKey:@"DOCustomGlassOfficialUIEnabled"];
-    [officialSwitch addTarget:self action:@selector(officialUIToggled:) forControlEvents:UIControlEventValueChanged];
-    [officialRow addArrangedSubview:officialSwitch];
-
-    [controlsStack addArrangedSubview:officialRow];
 
     UIButtonConfiguration *resetConfiguration = [UIButtonConfiguration plainButtonConfiguration];
     resetConfiguration.title = @"恢复推荐值";
@@ -1304,14 +1287,6 @@ static void DOCustomGlassExportLivePhoto(PHLivePhoto *livePhoto,
     [self.view addGestureRecognizer:edgeBackGesture];
 
     [self applyAppearancePreviewAndPersist:NO];
-}
-
-- (void)officialUIToggled:(UISwitch *)sender
-{
-    DONavigationController *nav = (DONavigationController *)self.navigationController;
-    if ([nav isKindOfClass:[DONavigationController class]]) {
-        [nav setCustomGlassOfficialUIEnabled:sender.isOn];
-    }
 }
 
 - (void)syncAppearanceControlsFromDefaults

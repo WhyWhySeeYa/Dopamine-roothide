@@ -13,6 +13,7 @@
 #import "DOPkgManagerPickerViewController.h"
 #import "DOHeaderCell.h"
 #import "DOEnvironmentManager.h"
+#import "DONavigationController.h"
 #import "DOExploitManager.h"
 #import "DOPSListItemsController.h"
 #import "DOPSExploitListItemsController.h"
@@ -754,6 +755,26 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 {
     [super viewDidLoad];
     [self customGlassInstallPageAppearance];
+
+    UIView *officialHeader = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 56)];
+    UILabel *officialLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 0, 240, 56)];
+    officialLabel.text = @"使用官方原界面";
+    officialLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
+    officialLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.92];
+    UISwitch *officialSwitch = [[UISwitch alloc] initWithFrame:CGRectMake(officialHeader.bounds.size.width - 67, 13, 51, 31)];
+    officialSwitch.on = [[NSUserDefaults standardUserDefaults] boolForKey:@"DOCustomGlassOfficialUIEnabled"];
+    [officialSwitch addTarget:self action:@selector(officialUIToggled:) forControlEvents:UIControlEventValueChanged];
+    [officialHeader addSubview:officialLabel];
+    [officialHeader addSubview:officialSwitch];
+    self.tableView.tableHeaderView = officialHeader;
+}
+
+- (void)officialUIToggled:(UISwitch *)sender
+{
+    DONavigationController *nav = (DONavigationController *)self.navigationController;
+    if ([nav isKindOfClass:[DONavigationController class]]) {
+        [nav setCustomGlassOfficialUIEnabled:sender.isOn];
+    }
 }
 
 - (void)viewWillAppear:(BOOL)arg1

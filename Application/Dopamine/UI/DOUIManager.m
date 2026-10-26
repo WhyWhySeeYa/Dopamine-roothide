@@ -97,6 +97,8 @@
 
 - (BOOL)environmentUpdateAvailable
 {
+    // Custom Glass build: never nag about environment updates.
+    return NO;
     if (![[DOEnvironmentManager sharedManager] jailbrokenVersion])
         return NO;
 
