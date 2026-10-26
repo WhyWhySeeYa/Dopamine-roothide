@@ -7,16 +7,27 @@
 
 #import "DOSceneDelegate.h"
 #import "DONavigationController.h"
+#import "DONavigationControllerOfficial.h"
+#import "DOPreferenceManager.h"
 
 @interface DOSceneDelegate ()
 
 @end
 
+static UINavigationController *DOOfficialAwareNavigationController(void)
+{
+    BOOL official = [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"officialUIEnabled" fallback:NO];
+    if (official) {
+        return [[DONavigationControllerOfficial alloc] init];
+    }
+    return [[DONavigationController alloc] init];
+}
+
 @implementation DOSceneDelegate
 
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
     UIWindow *window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
-    window.rootViewController = [[DONavigationController alloc] init];
+    window.rootViewController = DOOfficialAwareNavigationController();
     [window makeKeyAndVisible];
     self.window = window;
 }
@@ -30,7 +41,7 @@
         instance.window.alpha = 0;
     } completion:^(BOOL finished) {
         UIWindow *window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)instance.window.windowScene];
-        window.rootViewController = [[DONavigationController alloc] init];
+        window.rootViewController = DOOfficialAwareNavigationController();
         [window makeKeyAndVisible];
         instance.window = window;
         instance.window.alpha = 0;

@@ -22,6 +22,7 @@
 		042479AD2B66916B0082581B /* DOHeaderView.m in Sources */ = {isa = PBXBuildFile; fileRef = 042479872B66916B0082581B /* DOHeaderView.m */; };
 		042479AE2B66916B0082581B /* DOUIManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 042479882B66916B0082581B /* DOUIManager.m */; };
 		042479AF2B66916B0082581B /* DONavigationController.m in Sources */ = {isa = PBXBuildFile; fileRef = 042479892B66916B0082581B /* DONavigationController.m */; };
+		AD71B3D2138047EA9A7DC9F1 /* DONavigationControllerOfficial.m in Sources */ = {isa = PBXBuildFile; fileRef = 296F668C1CFA4037BCB18B1A /* DONavigationControllerOfficial.m */; };
 		042479B02B66916B0082581B /* DOLoadingIndicator.m in Sources */ = {isa = PBXBuildFile; fileRef = 0424798E2B66916B0082581B /* DOLoadingIndicator.m */; };
 		042479B12B66916B0082581B /* DODoubleHelixIndicator.m in Sources */ = {isa = PBXBuildFile; fileRef = 042479902B66916B0082581B /* DODoubleHelixIndicator.m */; };
 		042479B22B66916B0082581B /* DOLyricsLogView.m in Sources */ = {isa = PBXBuildFile; fileRef = 042479942B66916B0082581B /* DOLyricsLogView.m */; };
@@ -408,6 +409,7 @@
 		0424797E2B66916B0082581B /* DOModalTransitionScale.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOModalTransitionScale.m; sourceTree = "<group>"; };
 		0424797F2B66916B0082581B /* DOModalBackAction.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOModalBackAction.h; sourceTree = "<group>"; };
 		042479802B66916B0082581B /* DONavigationController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DONavigationController.h; sourceTree = "<group>"; };
+		7F00873F8CF741B6B82CCF06 /* DONavigationControllerOfficial.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DONavigationControllerOfficial.h; sourceTree = "<group>"; };
 		042479812B66916B0082581B /* DOUIManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOUIManager.h; sourceTree = "<group>"; };
 		042479822B66916B0082581B /* DOHeaderView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOHeaderView.h; sourceTree = "<group>"; };
 		042479832B66916B0082581B /* DOGlobalAppearance.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOGlobalAppearance.h; sourceTree = "<group>"; };
@@ -417,6 +419,7 @@
 		042479872B66916B0082581B /* DOHeaderView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOHeaderView.m; sourceTree = "<group>"; };
 		042479882B66916B0082581B /* DOUIManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOUIManager.m; sourceTree = "<group>"; };
 		042479892B66916B0082581B /* DONavigationController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DONavigationController.m; sourceTree = "<group>"; };
+		296F668C1CFA4037BCB18B1A /* DONavigationControllerOfficial.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DONavigationControllerOfficial.m; sourceTree = "<group>"; };
 		0424798B2B66916B0082581B /* DOLyricsLogItemView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DOLyricsLogItemView.h; sourceTree = "<group>"; };
 		0424798D2B66916B0082581B /* DODoubleHelixIndicator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DODoubleHelixIndicator.h; sourceTree = "<group>"; };
 		0424798E2B66916B0082581B /* DOLoadingIndicator.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DOLoadingIndicator.m; sourceTree = "<group>"; };
@@ -865,6 +868,8 @@
 				042479882B66916B0082581B /* DOUIManager.m */,
 				042479802B66916B0082581B /* DONavigationController.h */,
 				042479892B66916B0082581B /* DONavigationController.m */,
+				7F00873F8CF741B6B82CCF06 /* DONavigationControllerOfficial.h */,
+				296F668C1CFA4037BCB18B1A /* DONavigationControllerOfficial.m */,
 				042479842B66916B0082581B /* DOMainViewController.h */,
 				0424799F2B66916B0082581B /* DOMainViewController.m */,
 				99335464DBF2405D8B2E1EA0 /* DOMainViewControllerOfficial.h */,
@@ -2275,6 +2280,7 @@
 				042479A22B66916B0082581B /* DOCreditsViewController.m in Sources */,
 				042479B32B66916B0082581B /* DODebugLogView.m in Sources */,
 				042479AF2B66916B0082581B /* DONavigationController.m in Sources */,
+				AD71B3D2138047EA9A7DC9F1 /* DONavigationControllerOfficial.m in Sources */,
 				04C246AE2B74ACA200E17924 /* DOAppSwitch.m in Sources */,
 				8C6599DB2C555A60000FF57F /* DOPSJetsamListItemsController.m in Sources */,
 				042479B22B66916B0082581B /* DOLyricsLogView.m in Sources */,

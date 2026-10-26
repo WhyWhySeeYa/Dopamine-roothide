@@ -759,43 +759,6 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     [super viewDidLoad];
     [self customGlassInstallPageAppearance];
 
-    UIView *officialHeader = [[UIView alloc] init];
-    officialHeader.translatesAutoresizingMaskIntoConstraints = NO;
-
-    UILabel *officialLabel = [[UILabel alloc] init];
-    officialLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    officialLabel.text = @"使用官方原界面";
-    officialLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
-    officialLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.92];
-    [officialHeader addSubview:officialLabel];
-
-    UISwitch *officialSwitch = [[UISwitch alloc] init];
-    officialSwitch.translatesAutoresizingMaskIntoConstraints = NO;
-    officialSwitch.on = [[NSUserDefaults standardUserDefaults] boolForKey:@"DOCustomGlassOfficialUIEnabled"];
-    [officialSwitch addTarget:self action:@selector(officialUIToggled:) forControlEvents:UIControlEventValueChanged];
-    [officialHeader addSubview:officialSwitch];
-
-    [self.view addSubview:officialHeader];
-    [NSLayoutConstraint activateConstraints:@[
-        [officialHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [officialHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        [officialHeader.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
-        [officialHeader.heightAnchor constraintEqualToConstant:56],
-        [officialLabel.leadingAnchor constraintEqualToAnchor:officialHeader.leadingAnchor constant:16],
-        [officialLabel.centerYAnchor constraintEqualToAnchor:officialHeader.centerYAnchor],
-        [officialSwitch.trailingAnchor constraintEqualToAnchor:officialHeader.trailingAnchor constant:-16],
-        [officialSwitch.centerYAnchor constraintEqualToAnchor:officialHeader.centerYAnchor],
-    ]];
-}
-
-- (void)officialUIToggled:(UISwitch *)sender
-{
-    [[NSUserDefaults standardUserDefaults] setBool:sender.isOn forKey:@"DOCustomGlassOfficialUIEnabled"];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"需要重启"
-                                                                   message:@"切换界面风格需要重启 Dopamine 后生效"
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"好" style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)viewWillAppear:(BOOL)arg1
