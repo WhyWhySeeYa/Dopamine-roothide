@@ -34,6 +34,8 @@ static UIImage *DOCustomGlassNavigationResolveBackground(DOTheme *theme, BOOL *u
 {
     BOOL isCustomGlass = [theme.key isEqualToString:DOCustomGlassNavigationThemeKey];
     UIImage *userWallpaper = isCustomGlass ? DOCustomGlassMediaStoreLoadWallpaper() : nil;
+    NSLog(@"[CustomGlass][Wallpaper] customGlass=%d userWallpaper=%@ theme=%@",
+          isCustomGlass, userWallpaper ? @"YES" : @"nil", theme.key);
 
     if (usingUserWallpaper)
         *usingUserWallpaper = (userWallpaper != nil);
