@@ -13,7 +13,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface DOTheme : NSObject
 
 @property (nonatomic, retain) NSString *name;
-@property (nonatomic, retain) NSString *icon;
 @property (nonatomic, retain) NSString *key;
 @property (nonatomic, retain) UIColor *actionMenuColor;
 @property (nonatomic, retain) UIColor *windowColor;
@@ -23,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (id)initWithDictionary: (NSDictionary *)dictionary;
 
+- (void)invalidateImage;
 - (UIImage *)generateBootLogo;
 
 @end

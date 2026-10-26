@@ -19,7 +19,6 @@
     self = [super init];
     if (self) {
         self.name = [dictionary objectForKey:@"name"];
-        self.icon = [dictionary objectForKey:@"icon"];
         self.key = [dictionary objectForKey:@"key"];
         self.imageName = [dictionary objectForKey:@"image"];
         self.windowColor = [self colorFromHexString:[dictionary objectForKey:@"windowColor"]];
@@ -40,9 +39,18 @@
 
 - (UIImage *)image
 {
+    // DOTheme owns only immutable, bundle-backed theme artwork. Dynamic
+    // Custom Glass user media is resolved by DONavigationController before this
+    // fallback is consulted, so a cached Background_Purple image can never replace
+    // a user-selected wallpaper after launch.
     if (_image == nil)
         _image = [[UIImage imageNamed:self.imageName] imageWithBlur:self.blur];
     return _image;
+}
+
+- (void)invalidateImage
+{
+    _image = nil;
 }
 
 - (UIImage *)generateBootLogo

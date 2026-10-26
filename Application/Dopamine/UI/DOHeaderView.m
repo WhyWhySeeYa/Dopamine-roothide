@@ -85,7 +85,7 @@
     if (uptime < 60) {
         NSString *lessThanMinute = NSLocalizedString(@"System_Uptime_Less_Than_Minute", nil);
         if ([lessThanMinute isEqualToString:@"System_Uptime_Less_Than_Minute"]) {
-            return @"运行不到 1 分钟";
+            return @"uptime: less than 1 minute";
         }
         return lessThanMinute;
     }
@@ -99,7 +99,7 @@
     NSString *duration = [formatter stringFromTimeInterval:uptime];
     NSString *prefix = NSLocalizedString(@"System_Uptime_Prefix", nil);
     if ([prefix isEqualToString:@"System_Uptime_Prefix"]) {
-        prefix = @"已运行";
+        prefix = @"uptime:";
     }
     return [NSString stringWithFormat:@"%@ %@", prefix, duration ?: @""];
 }

@@ -138,7 +138,7 @@
         }
         else
         {
-            [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://github.com/roothide/Dopamine-roothide/releases"] options:@{} completionHandler:nil];
+            [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://github.com/kulinichx/RootHide/releases"] options:@{} completionHandler:nil];
         }
         
     }] chevron:NO];

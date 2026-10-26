@@ -77,7 +77,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 {
     [super viewDidLoad];
 
-    self.title = @"RootHide 健康";
+    self.title = @"RootHide Health";
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = UIColor.clearColor;
@@ -288,7 +288,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     selected.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.050];
 
     if (!self.healthReport.count && self.refreshInProgress) {
-        cell.textLabel.text = @"正在检查 RootHide 健康…";
+        cell.textLabel.text = @"Checking RootHide Health…";
         cell.textLabel.textColor = [self healthForegroundWithAlpha:0.96];
         cell.detailTextLabel.text = nil;
         cell.accessoryType = UITableViewCellAccessoryNone;
@@ -297,11 +297,11 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
     }
 
     NSDictionary<NSString *, id> *entry = self.healthReport[indexPath.row];
-    NSString *stateName = entry[@"StateName"] ?: @"未知";
+    NSString *stateName = entry[@"StateName"] ?: @"Unknown";
     BOOL healthy = [entry[@"Healthy"] boolValue];
     BOOL repairable = [entry[@"Repairable"] boolValue];
 
-    cell.textLabel.text = entry[@"DisplayName"] ?: @"RootHide 健康";
+    cell.textLabel.text = entry[@"DisplayName"] ?: @"RootHide Health";
     cell.textLabel.textColor = [self healthForegroundWithAlpha:0.96];
     cell.detailTextLabel.text = stateName;
     cell.detailTextLabel.numberOfLines = 1;
@@ -323,16 +323,16 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
 
     NSDictionary<NSString *, id> *entry = self.healthReport[indexPath.row];
     BOOL repairable = [entry[@"Repairable"] boolValue];
-    NSString *stateName = entry[@"StateName"] ?: @"未知";
+    NSString *stateName = entry[@"StateName"] ?: @"Unknown";
     NSString *detail = entry[@"Detail"];
     NSString *message = detail.length ? [NSString stringWithFormat:@"%@\n\n%@", stateName, detail] : stateName;
 
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:entry[@"DisplayName"] ?: @"RootHide 健康"
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:entry[@"DisplayName"] ?: @"RootHide Health"
                                                                    message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:DOLocalizedString(@"Button_OK") style:UIAlertActionStyleCancel handler:nil]];
     if (repairable) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"修复" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Repair" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
             [self repairEntry:entry];
         }]];
     }
@@ -365,7 +365,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
             self.refreshButton.enabled = YES;
             self.refreshButton.alpha = 1.0;
 
-            NSString *title = repairError ? @"RootHide 健康修复失败" : @"修复完成";
+            NSString *title = repairError ? @"RootHide Health Repair Failed" : @"Repair Complete";
             NSString *message = repairError.localizedDescription ?: @"The selected RootHide component is healthy.";
             UIAlertController *resultAlert = [UIAlertController alertControllerWithTitle:title
                                                                                    message:message
@@ -889,7 +889,7 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
         
         PSSpecifier *headerSpecifier = [PSSpecifier emptyGroupSpecifier];
         [headerSpecifier setProperty:@"DOHeaderCell" forKey:@"headerCellClass"];
-        [headerSpecifier setProperty:[NSString stringWithFormat:@"设置"] forKey:@"title"];
+        [headerSpecifier setProperty:[NSString stringWithFormat:@"Settings"] forKey:@"title"];
         [specifiers addObject:headerSpecifier];
         
         if (envManager.isSupported) {
@@ -995,6 +995,13 @@ static NSInteger const DOCustomGlassSettingsSeparatorTag = 0xC651;
             [jetsamSpecifier setProperty:@"jetsamOptionTitles" forKey:@"titlesDataSource"];
             [specifiers addObject:jetsamSpecifier];
 
+            PSSpecifier *supporterLicenseSpecifier = [PSSpecifier preferenceSpecifierNamed:@"" target:self set:defSetter get:defGetter detail:nil cell:PSStaticTextCell edit:nil];
+            [supporterLicenseSpecifier setProperty:@"Supporter License" forKey:@"title"];
+            [supporterLicenseSpecifier setProperty:[DOButtonCell class] forKey:@"cellClass"];
+            [supporterLicenseSpecifier setProperty:buttonHeight forKey:@"height"];
+            [supporterLicenseSpecifier setProperty:@"checkmark.seal" forKey:@"image"];
+            [supporterLicenseSpecifier setProperty:@"supporterLicensePressed" forKey:@"action"];
+            [specifiers addObject:supporterLicenseSpecifier];
             
             if (!envManager.isJailbroken && !envManager.isInstalledThroughTrollStore) {
                 PSSpecifier *removeJailbreakSwitchSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Button_Remove_Jailbreak") target:self set:@selector(setRemoveJailbreakEnabled:specifier:) get:defGetter detail:nil cell:PSSwitchCell edit:nil];

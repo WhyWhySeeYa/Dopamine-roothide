@@ -37,6 +37,15 @@
 
 - (BOOL)isUpdateAvailable
 {
+    BOOL disableUpdate = [_preferenceManager boolPreferenceValueForKey:@"disableUpdateEnabled" fallback:YES];
+    if (disableUpdate)
+        return NO;
+    
+    NSArray *releases = [self getLatestReleases];
+    if (releases.count == 0)
+        return NO;
+
+    
     NSString *latestVersion = [self getLatestReleaseTag];
     NSString *currentVersion = [self getLaunchedReleaseTag];
     return [latestVersion numericalVersionRepresentation] > [currentVersion numericalVersionRepresentation];
@@ -71,7 +80,7 @@
     static dispatch_once_t onceToken;
     static NSArray *releases;
     dispatch_once(&onceToken, ^{
-        NSURL *url = [NSURL URLWithString:@"https://api.github.com/repos/roothide/Dopamine-roothide/releases"];
+        NSURL *url = [NSURL URLWithString:@"https://api.github.com/repos/kulinichx/RootHide/releases"];
         NSData *data = [NSData dataWithContentsOfURL:url];
         if (data) {
             NSError *error;
@@ -91,9 +100,7 @@
     if (![[DOEnvironmentManager sharedManager] jailbrokenVersion])
         return NO;
 
-/********************************************** roothide specfic ***********************************/
-    NSString *jailbrokenVersion = [[DOEnvironmentManager sharedManager] jailbrokenVersionRootHide];
-/********************************************** roothide specfic ***********************************/
+    NSString *jailbrokenVersion = [[DOEnvironmentManager sharedManager] jailbrokenVersion];
     NSString *launchedVersion = [self getLaunchedReleaseTag];
     
     return [launchedVersion numericalVersionRepresentation] > [jailbrokenVersion numericalVersionRepresentation];
@@ -129,9 +136,7 @@
 
 - (NSString*)getLaunchedReleaseTag
 {
-/******************************************************** roothide specfic *******************************************************/
-    return [[[[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] componentsSeparatedByString:@"-"] lastObject];
-/*********************************************************************************************************************************/
+    return [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
 }
 
 - (NSArray*)availablePackageManagers
