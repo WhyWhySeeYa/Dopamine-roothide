@@ -359,14 +359,8 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
     [self.view setNeedsLayout];
     [self.view layoutIfNeeded];
 
-    UIViewController *rootVC;
-    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DOCustomGlassOfficialUIEnabled"]) {
-        rootVC = [[DOMainViewControllerOfficial alloc] init];
-    } else {
-        self.mainView = [[DOMainViewController alloc] init];
-        rootVC = self.mainView;
-    }
-    [self pushViewController:rootVC animated:NO];
+    self.mainView = [[DOMainViewController alloc] init];
+    [self pushViewController:self.mainView animated:NO];
     [self setDelegate:self];
     [self setOverrideUserInterfaceStyle:UIUserInterfaceStyleDark];
 }
@@ -544,7 +538,7 @@ static CGFloat DOCustomGlassNavigationScrimAlpha(CGFloat luminance, CGFloat hier
     if ([self respondsToSelector:NSSelectorFromString(@"fallbackBlurView")]) {
         [self setValue:@(enabled) forKeyPath:@"fallbackBlurView.hidden"];
     }
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:@"DOCustomGlassOfficialUIEnabled"];
+    [[DOPreferenceManager sharedManager] setPreferenceValue:@(enabled) forKey:@"officialUIEnabled"];
 }
 
 - (void)customGlassRefreshSharedBackground
